@@ -5,10 +5,13 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd"
         objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
-    <changeSet id="1706361236648-1" author="jacekdalmer (generated)">
-        <createTable tableName="user">
+    <changeSet id="1706379254198-1" author="jacekdalmer (generated)">
+        <createTable schemaName="public" tableName="user">
             <column name="id" type="uuid">
                 <constraints nullable="false" primaryKey="true" primaryKeyName="pk_user"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false"/>
             </column>
             <column name="points" type="INT">
                 <constraints nullable="false"/>
@@ -16,13 +19,10 @@
             <column name="last_added_video" type="DATETIME">
                 <constraints nullable="false"/>
             </column>
-            <column name="username" type="VARCHAR(255)">
+            <column name="last_response" type="DATETIME">
                 <constraints nullable="false"/>
             </column>
         </createTable>
-    </changeSet>
-    <changeSet id="1706361236648-2" author="jacekdalmer (generated)">
-        <dropTable cascadeConstraints="true" tableName="example_table"/>
     </changeSet>
 
 </databaseChangeLog>

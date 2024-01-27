@@ -59,6 +59,8 @@ class CommandService(
     val command = detectCommand(message)
     if (command != null) {
       userRepository.findByUsername(username) ?: userRepository.save(User(username))
+      if (!canResponseToCommand(username)) return
+      setLastResponse(username)
       val twitchCommand = parseCommand(message)
       when (twitchCommand?.command) {
         ";link" -> {
@@ -78,6 +80,14 @@ class CommandService(
         }
       }
     }
+  }
+
+  private fun setLastResponse(username: String) {
+    userRepository.save(
+      userRepository.findByUsername(username)?.apply {
+        lastResponse = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+      } ?: User(username)
+    )
   }
 
   private fun addVideoWithId(twitchCommand: TwitchCommand, channel: String, username: String) {
@@ -175,5 +185,13 @@ class CommandService(
       result = "${minutes}min ${seconds}sec"
     }
     return result
+  }
+
+  fun canResponseToCommand(username: String): Boolean {
+    val user = userRepository.findByUsername(username) ?: return false
+    val nextCommandTime =
+      user.lastResponse.plusSeconds(userConfig.secondsToResponseToCommand?.toLong() ?: 0)
+    return nextCommandTime == null ||
+      nextCommandTime.isBefore(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
   }
 }

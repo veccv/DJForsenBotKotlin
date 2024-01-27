@@ -23,4 +23,6 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   @Column(name = "points", nullable = false) var points: Int = 0
   @Column(name = "last_added_video", nullable = false)
   var lastAddedVideo: LocalDateTime = LocalDateTime.now().minusDays(1)
+  @Column(name = "last_response", nullable = false)
+  var lastResponse: LocalDateTime = LocalDateTime.now().minusDays(1)
 }

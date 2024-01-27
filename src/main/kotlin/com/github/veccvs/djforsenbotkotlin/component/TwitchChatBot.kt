@@ -1,5 +1,6 @@
 package com.github.veccvs.djforsenbotkotlin.component
 
+import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.service.CommandService
 import jakarta.annotation.PostConstruct
@@ -15,8 +16,11 @@ import org.springframework.stereotype.Component
 @Component
 class TwitchChatBot
 @Autowired
-constructor(private val cytubeDao: CytubeDao, @Lazy private val commandService: CommandService) :
-  ListenerAdapter() {
+constructor(
+  private val cytubeDao: CytubeDao,
+  @Lazy private val commandService: CommandService,
+  @Lazy private val userConfig: UserConfig,
+) : ListenerAdapter() {
   private lateinit var bot: PircBotX
 
   override fun onMessage(event: MessageEvent) {
@@ -36,7 +40,7 @@ constructor(private val cytubeDao: CytubeDao, @Lazy private val commandService: 
         .setName("DJForsenBOT")
         .setServerPassword("oauth:8ch29qb40ryykrvb33xzkawix07yi8")
         .addServer("irc.chat.twitch.tv")
-        .addAutoJoinChannel("#veccvs")
+        .addAutoJoinChannel(userConfig.channelName ?: "#forsen")
         .addListener(this)
         .setAutoReconnect(true)
         .addCapHandler(EnableCapHandler("twitch.tv/membership"))

@@ -8,4 +8,6 @@ import org.springframework.context.annotation.PropertySource
 @PropertySource("classpath:application.properties")
 class UserConfig {
   @Value("\${user.minutes-to-add-video}") val minutesToAddVideo: Int? = null
+  @Value("\${user.seconds-to-response}") val secondsToResponseToCommand: Int? = null
+  @Value("\${chat.channel-name}") val channelName: String? = null
 }
