@@ -49,7 +49,7 @@ class CommandService(
   }
 
   fun commandHandler(username: String, message: String, channel: String) {
-    if (StreamInfo.streamEnabled()) return
+    if (StreamInfo.streamEnabled() && channel == "#forsen") return
 
     if (message.startsWith("!forsenJAMMER")) {
       sendMessage(channel, "pepeJAM @${username} bot made by veccvs")
