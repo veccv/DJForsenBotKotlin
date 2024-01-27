@@ -50,4 +50,12 @@ tasks.withType<KotlinCompile> {
   }
 }
 
+tasks.jar {
+  manifest {
+    attributes(
+      mapOf("Main-Class" to "com.github.veccvs.djforsenbotkotlin.DjForsenBotKotlinApplication")
+    )
+  }
+}
+
 tasks.withType<Test> { useJUnitPlatform() }
