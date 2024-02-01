@@ -37,10 +37,10 @@ constructor(
   fun startBot() {
     val configuration =
       Configuration.Builder()
-        .setName("DJForsenBOT")
+        .setName("forsenJAMMER")
         .setServerPassword("oauth:8ch29qb40ryykrvb33xzkawix07yi8")
         .addServer("irc.chat.twitch.tv")
-        .addAutoJoinChannel(userConfig.channelName ?: "#forsen")
+        .addAutoJoinChannel(userConfig.channelName ?: "#veccv")
         .addListener(this)
         .setAutoReconnect(true)
         .addCapHandler(EnableCapHandler("twitch.tv/membership"))
