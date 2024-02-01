@@ -21,6 +21,7 @@ class CommandService(
   @Autowired private val twitchChatBot: TwitchChatBot,
   @Autowired private val userRepository: UserRepository,
   @Autowired private val userConfig: UserConfig,
+  @Autowired private val songService: SongService,
 ) {
   fun sendMessage(channel: String, message: String) {
     twitchChatBot.sendMessage(channel, message)
@@ -107,6 +108,7 @@ class CommandService(
         cytubeDao.addVideo("https://youtu.be/${videoId}")
         updateUserAddedVideo(username)
         sendMessage(channel, "pepeJAM @${username} added video with id: $videoId")
+        songService.addUniqueSong("https://youtu.be/${videoId}")
       } else {
         sendMessage(channel, "pepeJAM @${username} Bot is resetting, wait a few seconds :)")
       }
@@ -133,6 +135,7 @@ class CommandService(
       if (searchResult != null && correctResult != null) {
         if (cytubeDao.getBotStatus()?.botEnabled == true) {
           cytubeDao.addVideo("https://youtu.be/${correctResult.id}")
+          songService.addUniqueSong("https://youtu.be/${correctResult.id}")
           updateUserAddedVideo(username)
           sendMessage(
             channel,
