@@ -67,14 +67,12 @@ class CommandService(
         ";link" -> {
           sendMessage(channel, "pepeJAM 👉 @${username} cytu.be/r/forsenboys")
         }
-        ";search" -> {
+        ";search",
+        ";s" -> {
           searchVideo(twitchCommand, channel, username)
         }
-        ";add" -> {
-          addVideoWithId(twitchCommand, channel, username)
-        }
         ";help" -> {
-          sendMessage(channel, "pepeJAM @${username} Commands: ;link, ;search, ;add, ;help")
+          sendMessage(channel, "pepeJAM @${username} Commands: ;link, ;search, ;s, ;help")
         }
         else -> {
           sendMessage(channel, "pepeJAM @$username Unknown command, try ;link, ;search or ;add")
@@ -89,32 +87,6 @@ class CommandService(
         lastResponse = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
       } ?: User(username)
     )
-  }
-
-  private fun addVideoWithId(twitchCommand: TwitchCommand, channel: String, username: String) {
-    if (canUserAddVideoHandler(username, channel)) return
-
-    if (cytubeDao.getBotStatus() != null) {
-      val videoId = twitchCommand.params[0]
-      if (videoId.length != 11) {
-        sendMessage(
-          channel,
-          "pepeJAM @${username} Invalid video id. Use it like this: ;add 1a2b3c4d5e6",
-        )
-        return
-      }
-
-      if (cytubeDao.getBotStatus()?.botEnabled == true) {
-        cytubeDao.addVideo("https://youtu.be/${videoId}")
-        updateUserAddedVideo(username)
-        sendMessage(channel, "pepeJAM @${username} added video with id: $videoId")
-        songService.addUniqueSong("https://youtu.be/${videoId}")
-      } else {
-        sendMessage(channel, "pepeJAM @${username} Bot is resetting, wait a few seconds :)")
-      }
-    } else {
-      sendMessage(channel, "pepeJAM @${username} Bot is resetting, wait a few seconds :)")
-    }
   }
 
   private fun updateUserAddedVideo(username: String) {
