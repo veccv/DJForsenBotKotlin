@@ -8,6 +8,7 @@ import com.github.veccvs.djforsenbotkotlin.model.TwitchCommand
 import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.model.Video
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
+import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.time.Duration
@@ -24,8 +25,11 @@ class CommandService(
   @Autowired private val songService: SongService,
 ) {
   fun sendMessage(channel: String, message: String) {
+    if (BanPhraseChecker.check(message)) {
+      twitchChatBot.sendMessage(channel, "docJAM banned phrase detected")
+      return
+    }
     twitchChatBot.sendMessage(channel, message)
-    //        else throw HttpClientErrorException(HttpStatus.FORBIDDEN, "Bot is disabled")
   }
 
   fun detectCommand(message: String): String? {
@@ -53,7 +57,7 @@ class CommandService(
     if (StreamInfo.streamEnabled() && channel == "#forsen") return
 
     if (message.startsWith("!forsenJAMMER")) {
-      sendMessage(channel, "pepeJAM @${username} bot made by veccvs")
+      sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
 
@@ -65,17 +69,17 @@ class CommandService(
       val twitchCommand = parseCommand(message)
       when (twitchCommand?.command) {
         ";link" -> {
-          sendMessage(channel, "pepeJAM 👉 @${username} cytu.be/r/forsenboys")
+          sendMessage(channel, "docJAM 👉 @${username} cytu.be/r/forsenboys")
         }
         ";search",
         ";s" -> {
           searchVideo(twitchCommand, channel, username)
         }
         ";help" -> {
-          sendMessage(channel, "pepeJAM @${username} Commands: ;link, ;search, ;s, ;help")
+          sendMessage(channel, "docJAM @${username} Commands: ;link, ;search, ;s, ;help")
         }
         else -> {
-          sendMessage(channel, "pepeJAM @$username Unknown command, try ;link, ;search or ;add")
+          sendMessage(channel, "docJAM @$username Unknown command, try ;link, ;search or ;add")
         }
       }
     }
@@ -111,16 +115,16 @@ class CommandService(
           updateUserAddedVideo(username)
           sendMessage(
             channel,
-            "pepeJAM @${username} added video: ${correctResult.title.substring(0, 30)}[...]",
+            "docJAM @${username} added video: ${correctResult.title.substring(0, 30)}[...]",
           )
         } else {
-          sendMessage(channel, "pepeJAM @${username} Bot is resetting, wait a few seconds :)")
+          sendMessage(channel, "docJAM @${username} Bot is resetting, wait a few seconds :)")
         }
       } else {
-        sendMessage(channel, "pepeJAM @${username} No results found")
+        sendMessage(channel, "docJAM @${username} No results found")
       }
     } else {
-      sendMessage(channel, "pepeJAM @${username} Bot is resetting, wait a few seconds :)")
+      sendMessage(channel, "docJAM @${username} Bot is resetting, wait a few seconds :)")
     }
   }
 
@@ -128,7 +132,7 @@ class CommandService(
     if (!canUserAddVideo(username)) {
       sendMessage(
         channel,
-        "pepeJAM @${username} You can add a video every ${userConfig.minutesToAddVideo} minutes. Time to add next video: ${
+        "docJAM @${username} You can add a video every ${userConfig.minutesToAddVideo} minutes. Time to add next video: ${
                 timeToNextVideo(
                         username
                 )

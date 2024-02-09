@@ -41,14 +41,14 @@ class SongScheduler(
         if (cytubeDao.getPlaylist()!!.queue[0].title.length < 50) {
           commandService.sendMessage(
             userConfig.channelName!!,
-            "pepeJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0,
+            "docJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0,
                             cytubeDao.getPlaylist()!!.queue[0].title.length,
                             )}",
           )
         } else {
           commandService.sendMessage(
             userConfig.channelName!!,
-            "pepeJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0, 50)}[...]",
+            "docJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0, 50)}[...]",
           )
         }
       }
