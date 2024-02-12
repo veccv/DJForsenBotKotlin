@@ -4,10 +4,12 @@ import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.model.LastSong
 import com.github.veccvs.djforsenbotkotlin.repository.SongRepository
+import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.CommandService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.LocalDateTime
 
 @Component
 class SongScheduler(
@@ -15,6 +17,7 @@ class SongScheduler(
   @Autowired private val songRepository: SongRepository,
   @Autowired private val userConfig: UserConfig,
   @Autowired private val commandService: CommandService,
+  @Autowired private val userRepository: UserRepository,
 ) {
   @Scheduled(fixedDelay = 2000)
   fun scheduleSong() {
@@ -50,6 +53,22 @@ class SongScheduler(
             userConfig.channelName!!,
             "docJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0, 50)}[...]",
           )
+        }
+      }
+    }
+  }
+
+  @Scheduled(fixedDelay = 2000)
+  fun notifyUsers() {
+    if (cytubeDao.getBotStatus() != null && cytubeDao.getBotStatus()!!.botEnabled) {
+      userRepository.findAllByUserNotifiedIsFalse().forEach {
+        if (LocalDateTime.now().isAfter(it.lastAddedVideo.plusMinutes(2))) {
+          commandService.sendMessage(
+            userConfig.channelName!!,
+            "@${it.username} forsenJam you can add song now! forsenMaxLevel",
+          )
+          it.userNotified = true
+          userRepository.save(it)
         }
       }
     }

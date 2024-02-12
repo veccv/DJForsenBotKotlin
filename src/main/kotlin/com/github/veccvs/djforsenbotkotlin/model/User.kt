@@ -25,4 +25,5 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   var lastAddedVideo: LocalDateTime = LocalDateTime.now().minusDays(1)
   @Column(name = "last_response", nullable = false)
   var lastResponse: LocalDateTime = LocalDateTime.now().minusDays(1)
+  @Column(name = "user_notified", nullable = true) var userNotified: Boolean = true
 }
