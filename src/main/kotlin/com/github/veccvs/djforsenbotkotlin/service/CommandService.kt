@@ -116,16 +116,16 @@ class CommandService(
           updateUserAddedVideo(username)
           sendMessage(
             channel,
-            "docJAM @${username} added video: ${correctResult.title.substring(0, 30)}[...]",
+            "@${username} docJAM added video: ${correctResult.title.substring(0, 30)}[...]",
           )
         } else {
-          sendMessage(channel, "docJAM @${username} Bot is resetting, wait a few seconds :)")
+          sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
         }
       } else {
-        sendMessage(channel, "docJAM @${username} No results found")
+        sendMessage(channel, "@${username} docJAM No results found")
       }
     } else {
-      sendMessage(channel, "docJAM @${username} Bot is resetting, wait a few seconds :)")
+      sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
     }
   }
 
