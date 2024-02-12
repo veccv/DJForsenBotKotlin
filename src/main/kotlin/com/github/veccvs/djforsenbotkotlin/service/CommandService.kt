@@ -97,6 +97,7 @@ class CommandService(
     userRepository.save(
       userRepository.findByUsername(username)?.apply {
         lastAddedVideo = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+        userNotified = false
       } ?: User(username)
     )
   }

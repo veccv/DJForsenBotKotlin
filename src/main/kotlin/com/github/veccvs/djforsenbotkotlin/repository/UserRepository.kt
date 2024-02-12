@@ -6,4 +6,6 @@ import java.util.*
 
 interface UserRepository : JpaRepository<User, UUID> {
   fun findByUsername(username: String): User?
+
+  fun findAllByUserNotifiedIsFalse(): List<User>
 }
