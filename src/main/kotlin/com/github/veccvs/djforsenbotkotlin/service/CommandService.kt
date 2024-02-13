@@ -11,10 +11,12 @@ import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import java.text.Normalizer
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.regex.Pattern
 
 @Service
 class CommandService(
@@ -102,6 +104,12 @@ class CommandService(
     )
   }
 
+  fun normalizeText(input: String): String {
+    val temp = Normalizer.normalize(input, Normalizer.Form.NFD)
+    val pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
+    return pattern.matcher(temp).replaceAll("").replace("[^\\p{Alnum}]".toRegex(), " ")
+  }
+
   private fun searchVideo(twitchCommand: TwitchCommand, channel: String, username: String) {
     if (canUserAddVideoHandler(username, channel)) return
 
@@ -114,10 +122,8 @@ class CommandService(
           cytubeDao.addVideo("https://youtu.be/${correctResult.id}")
           songService.addUniqueSong("https://youtu.be/${correctResult.id}")
           updateUserAddedVideo(username)
-          sendMessage(
-            channel,
-            "@${username} docJAM added video: ${correctResult.title.substring(0, 30)}[...]",
-          )
+          val videoTitle = normalizeText(correctResult.title).drop(0).take(50)
+          sendMessage(channel, "$username docJAM added $videoTitle")
         } else {
           sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
         }
