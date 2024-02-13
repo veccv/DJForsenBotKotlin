@@ -123,7 +123,7 @@ class CommandService(
           songService.addUniqueSong("https://youtu.be/${correctResult.id}")
           updateUserAddedVideo(username)
           val videoTitle = normalizeText(correctResult.title).drop(0).take(50)
-          sendMessage(channel, "$username docJAM added $videoTitle")
+          sendMessage(channel, "$username docJAM added $videoTitle [...]")
         } else {
           sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
         }
