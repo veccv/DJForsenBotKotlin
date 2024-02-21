@@ -78,7 +78,10 @@ class CommandService(
           searchVideo(twitchCommand, channel, username)
         }
         ";help" -> {
-          sendMessage(channel, "docJAM @${username} Commands: ;link, ;search, ;s, ;help")
+          sendMessage(channel, "docJAM @${username} Commands: ;link, ;search, ;s, ;help, ;playlist")
+        }
+        ";playlist" -> {
+          getPlaylist(username, channel)
         }
         else -> {
           sendMessage(channel, "docJAM @$username Unknown command, try ;link, ;search or ;add")
@@ -148,6 +151,20 @@ class CommandService(
       return true
     }
     return false
+  }
+
+  fun getPlaylist(username: String, channel: String) {
+    val playlist = cytubeDao.getPlaylist()
+    val videoList =
+      playlist
+        ?.queue
+        ?.parallelStream()
+        ?.limit(3)
+        ?.map { it.title.drop(0).take(20) }
+        ?.toList()
+        ?.joinToString(", ")
+
+    sendMessage(channel, "@$username docJAM Playlist: $videoList")
   }
 
   fun canUserAddVideo(username: String): Boolean {
