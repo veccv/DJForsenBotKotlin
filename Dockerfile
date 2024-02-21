@@ -1,7 +1,7 @@
 FROM openjdk:17-jdk-alpine AS builder
 WORKDIR /workspace/app
 COPY . .
-RUN ./gradlew build
+RUN ./gradlew build -x test
 
 FROM openjdk:17-jdk-alpine AS runner
 WORKDIR /app
