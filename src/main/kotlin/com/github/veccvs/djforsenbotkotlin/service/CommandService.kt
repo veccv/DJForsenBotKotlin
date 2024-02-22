@@ -1,6 +1,5 @@
 package com.github.veccvs.djforsenbotkotlin.service
 
-import StreamInfo
 import com.github.veccvs.djforsenbotkotlin.component.TwitchChatBot
 import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
@@ -9,6 +8,7 @@ import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.model.Video
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
+import com.github.veccvs.djforsenbotkotlin.utils.StreamInfo
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.text.Normalizer
