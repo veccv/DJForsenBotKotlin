@@ -25,5 +25,5 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        docker build -t docker.pkg.github.com/${{ github.repository }}/djforsenbot:0.0.1 .
-        docker push docker.pkg.github.com/${{ github.repository }}/djforsenbot:0.0.1
+        docker build -t docker.pkg.github.com/djforsenbotkotlin/djforsenbot:0.0.1 .
+        docker push docker.pkg.github.com/djforsenbotkotlin/djforsenbot:0.0.1
