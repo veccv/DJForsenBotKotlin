@@ -13,6 +13,7 @@ plugins {
   kotlin("jvm") version "1.9.22"
   kotlin("plugin.spring") version "1.9.22"
   kotlin("plugin.jpa") version "1.9.22"
+  `maven-publish`
 }
 
 group = "com.github.veccvs"
@@ -24,6 +25,33 @@ java { sourceCompatibility = JavaVersion.VERSION_21 }
 configurations { compileOnly { extendsFrom(configurations.annotationProcessor.get()) } }
 
 repositories { mavenCentral() }
+
+publishing {
+  publications {
+    create<MavenPublication>("gpr") {
+      from(components["java"])
+      groupId = "com.github.veccvs"
+      artifactId = "dj-bot"
+      version = "0.0.1-SNAPSHOT"
+
+      pom {
+        name.set("DJForsenBotKotlin")
+        description.set("Bot created for managing cytu.be")
+        url.set("https://github.com/veccv/DJForsenBotKotlin")
+      }
+    }
+  }
+  repositories {
+    maven {
+      name = "GitHubPackages"
+      url = uri("https://maven.pkg.github.com/veccv/DJForsenBotKotlin")
+      credentials {
+        username = System.getenv("USERNAME")
+        password = System.getenv("TOKEN")
+      }
+    }
+  }
+}
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-data-jpa")

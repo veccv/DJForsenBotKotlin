@@ -8,16 +8,4 @@
       </database-info>
     </database-infos>
   </component>
-  <component name="JpaPluginProjectSettings">
-    <option name="lastSelectedLanguage" value="Kotlin" />
-  </component>
-  <component name="PersistenceUnitSettings">
-    <persistence-units>
-      <persistence-unit name="Default" defaultIncludeChangeLogFile="src/main/resources/db.changelog-master.xml">
-        <packages>
-          <package value="com.github.veccvs.djforsenbotkotlin" />
-        </packages>
-      </persistence-unit>
-    </persistence-units>
-  </component>
 </project>
