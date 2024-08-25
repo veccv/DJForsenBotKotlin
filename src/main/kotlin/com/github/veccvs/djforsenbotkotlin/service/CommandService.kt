@@ -71,7 +71,10 @@ class CommandService(
       val twitchCommand = parseCommand(message)
       when (twitchCommand?.command) {
         ";link" -> {
-          sendMessage(channel, "docJAM 👉 @${username} cytu.be/r/forsenboys")
+          sendMessage(
+            channel,
+            "docJAM 👉 @${username} cytu.\uDB40\uDC00be\uDB40\uDC00/r\uDB40\uDC00/\uDB40\uDC00forsenboys",
+          )
         }
         ";search",
         ";s" -> {
