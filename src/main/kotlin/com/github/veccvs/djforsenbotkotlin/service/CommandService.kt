@@ -9,14 +9,14 @@ import com.github.veccvs.djforsenbotkotlin.model.Video
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
 import com.github.veccvs.djforsenbotkotlin.utils.StreamInfo
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.stereotype.Service
 import java.text.Normalizer
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.regex.Pattern
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Service
 
 @Service
 class CommandService(
@@ -58,7 +58,7 @@ class CommandService(
   fun commandHandler(username: String, message: String, channel: String) {
     if (StreamInfo.streamEnabled() && channel == "#forsen") return
 
-    if (message.startsWith("!forsenJAMMER")) {
+    if (message.startsWith("!djfors_")) {
       sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
