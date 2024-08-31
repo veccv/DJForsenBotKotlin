@@ -11,7 +11,7 @@ import org.springframework.web.client.getForEntity
 
 @Component
 class CytubeDao @Autowired constructor(private val restTemplate: RestTemplate) {
-  private val url = "http://localhost:7777/"
+  private val url = "http://cytubebot-base:7777/"
 
   fun getPlaylist(): Playlist? {
     val response: ResponseEntity<Playlist> = restTemplate.getForEntity("$url/playlist")
