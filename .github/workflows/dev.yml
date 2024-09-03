@@ -2,7 +2,8 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ main ]
+    branches-ignore:
+      - main
 
 jobs:
   build:
@@ -34,5 +35,5 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t docker.pkg.github.com/veccv/djforsenbotkotlin/djforsenbot:0.0.1 .
-          docker push docker.pkg.github.com/veccv/djforsenbotkotlin/djforsenbot:0.0.1
+          docker build -t docker.pkg.github.com/veccv/djforsenbotkotlin/djforsenbot:0.0.1-dev .
+          docker push docker.pkg.github.com/veccv/djforsenbotkotlin/djforsenbot:0.0.1-dev
