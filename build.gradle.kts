@@ -7,6 +7,11 @@ val jsonVersion by extra("20231013")
 val socketIoVersion by extra("2.1.0")
 val kotlinXCoroutinesVersion by extra("1.5.2")
 
+java {
+  sourceCompatibility = JavaVersion.VERSION_21
+  targetCompatibility = JavaVersion.VERSION_21
+}
+
 plugins {
   id("org.springframework.boot") version "3.2.2"
   id("io.spring.dependency-management") version "1.1.4"
