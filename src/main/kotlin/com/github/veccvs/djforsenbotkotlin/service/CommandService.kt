@@ -75,6 +75,10 @@ class CommandService(
       when (twitchCommand?.command) {
         ";link",
         ";where" -> {
+          twitchChatBot.sendMessage(
+            channel,
+            "docJAM @${username} I sent you a whisper with the link forsenCD ",
+          )
           twitchConnector.sendWhisperWithCustomHeaders(username, "https://cytu.be/r/forsenboys")
         }
         ";search",
