@@ -1,6 +1,7 @@
 package com.github.veccvs.djforsenbotkotlin.service
 
 import com.github.veccvs.djforsenbotkotlin.component.TwitchChatBot
+import com.github.veccvs.djforsenbotkotlin.component.TwitchConnector
 import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.model.TwitchCommand
@@ -26,6 +27,8 @@ class CommandService(
   @Autowired private val userConfig: UserConfig,
   @Autowired private val songService: SongService,
 ) {
+  private val twitchConnector = TwitchConnector()
+
   fun sendMessage(channel: String, message: String) {
     if (BanPhraseChecker.check(message)) {
       twitchChatBot.sendMessage(channel, "docJAM banned phrase detected")
@@ -70,18 +73,19 @@ class CommandService(
       setLastResponse(username)
       val twitchCommand = parseCommand(message)
       when (twitchCommand?.command) {
-        ";link" -> {
-          sendMessage(
-            channel,
-            "docJAM 👉 @${username} cytu.\uDB40\uDC00be\uDB40\uDC00/r\uDB40\uDC00/\uDB40\uDC00forsenboys",
-          )
+        ";link",
+        ";where" -> {
+          twitchConnector.sendWhisperWithCustomHeaders(username, "https://cytu.be/r/forsenboys")
         }
         ";search",
         ";s" -> {
           searchVideo(twitchCommand, channel, username)
         }
         ";help" -> {
-          sendMessage(channel, "docJAM @${username} Commands: ;link, ;search, ;s, ;help, ;playlist")
+          sendMessage(
+            channel,
+            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist",
+          )
         }
         ";playlist" -> {
           getPlaylist(username, channel)
