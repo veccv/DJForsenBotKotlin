@@ -9,6 +9,6 @@ class TwitchConnectorTest {
     val twitchConnector = TwitchConnector()
     println(twitchConnector.getUserInfo("djfors_"))
     println(twitchConnector.getUserInfo("veccvs"))
-    twitchConnector.sendWhisperWithCustomHeaders("veccvs", "test")
+    twitchConnector.sendWhisper("veccvs", "test")
   }
 }
