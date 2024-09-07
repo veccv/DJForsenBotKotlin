@@ -79,7 +79,7 @@ class CommandService(
             channel,
             "docJAM @${username} I sent you a whisper with the link forsenCD ",
           )
-          twitchConnector.sendWhisperWithCustomHeaders(username, "https://cytu.be/r/forsenboys")
+          twitchConnector.sendWhisper(username, "https://cytu.be/r/forsenboys")
         }
         ";search",
         ";s" -> {
