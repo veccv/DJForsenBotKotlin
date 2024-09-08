@@ -26,6 +26,7 @@ class CommandService(
   @Autowired private val userRepository: UserRepository,
   @Autowired private val userConfig: UserConfig,
   @Autowired private val songService: SongService,
+  @Autowired private val skipCounterService: SkipCounterService,
 ) {
   private val twitchConnector = TwitchConnector()
 
@@ -94,8 +95,11 @@ class CommandService(
         ";playlist" -> {
           getPlaylist(username, channel)
         }
+        ";skip" -> {
+          skipCommand(username, channel)
+        }
         else -> {
-          sendMessage(channel, "docJAM @$username Unknown command, try ;link, ;search or ;add")
+          sendMessage(channel, "docJAM @$username Unknown command, try ;link, ;search or ;help")
         }
       }
     }
@@ -187,18 +191,7 @@ class CommandService(
 
   fun timeToNextVideo(username: String): String {
     val user = userRepository.findByUsername(username) ?: return "0"
-    val nextVideoTime = user.lastAddedVideo.plusMinutes(userConfig.minutesToAddVideo?.toLong() ?: 0)
-    val now = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
-    val result: String
-    if (nextVideoTime.isBefore(now)) {
-      result = "0"
-    } else {
-      val duration = Duration.between(now, nextVideoTime)
-      val minutes = duration.toMinutes()
-      val seconds = duration.seconds % 60
-      result = "${minutes}min ${seconds}sec"
-    }
-    return result
+    return timeToNextAction(user.lastAddedVideo, userConfig.minutesToAddVideo?.toLong() ?: 0)
   }
 
   fun canResponseToCommand(username: String): Boolean {
@@ -207,5 +200,60 @@ class CommandService(
       user.lastResponse.plusSeconds(userConfig.secondsToResponseToCommand?.toLong() ?: 0)
     return nextCommandTime == null ||
       nextCommandTime.isBefore(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
+  }
+
+  fun canUserSkipVideo(username: String): Boolean {
+    val user = userRepository.findByUsername(username) ?: return false
+    val skipVideoTime = user.lastSkip.plusMinutes(userConfig.minutesToSkipVideo?.toLong() ?: 0)
+    return skipVideoTime == null ||
+      skipVideoTime.isBefore(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
+  }
+
+  fun skipCommand(username: String, channel: String) {
+    if (canUserSkipVideo(username)) {
+      skipCounterService.incrementSkipCounter()
+      userRepository.save(
+        userRepository.findByUsername(username)?.apply {
+          lastSkip = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+        } ?: User(username)
+      )
+
+      if (skipCounterService.getSkipCounter() > (userConfig.skipValue?.toLong() ?: 5)) {
+        cytubeDao.skipVideo()
+        sendMessage(channel, "docJAM skipped the video")
+      } else {
+        sendMessage(
+          channel,
+          "docJAM @${username} ${userConfig.skipValue?.toLong()?.minus(skipCounterService.getSkipCounter())} more skips needed to skip the video",
+        )
+      }
+    } else {
+      sendMessage(
+        channel,
+        "docJAM @${username} You can skip a video every ${userConfig.minutesToSkipVideo} minutes, time to skip video: ${
+                timeToNextSkip(
+                        username
+                )
+              }",
+      )
+    }
+  }
+
+  fun timeToNextSkip(username: String): String {
+    val user = userRepository.findByUsername(username) ?: return "0"
+    return timeToNextAction(user.lastSkip, userConfig.minutesToSkipVideo?.toLong() ?: 0)
+  }
+
+  fun timeToNextAction(lastActionTime: LocalDateTime, intervalMinutes: Long): String {
+    val now = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+    val nextActionTime = lastActionTime.plusMinutes(intervalMinutes)
+    return if (nextActionTime.isBefore(now)) {
+      "0"
+    } else {
+      val duration = Duration.between(now, nextActionTime)
+      val minutes = duration.toMinutes()
+      val seconds = duration.seconds % 60
+      "${minutes}min ${seconds}sec"
+    }
   }
 }

@@ -11,5 +11,7 @@ class UserConfig {
   @Value("\${user.minutes-to-add-video}") val minutesToAddVideo: Int? = null
   @Value("\${user.seconds-to-response}") val secondsToResponseToCommand: Int? = null
   @Value("\${chat.channel-name}") val channelName: String? = null
+  @Value("\${user.minutes-to-skip-video}") val minutesToSkipVideo: String? = null
+  @Value("\${user.skip-value}") val skipValue: String? = null
   var lastSong: LastSong = LastSong()
 }
