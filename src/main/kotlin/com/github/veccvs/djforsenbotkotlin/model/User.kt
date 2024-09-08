@@ -1,12 +1,12 @@
 package com.github.veccvs.djforsenbotkotlin.model
 
 import jakarta.persistence.*
+import java.time.LocalDateTime
+import java.util.*
 import lombok.AllArgsConstructor
 import lombok.Getter
 import lombok.NoArgsConstructor
 import lombok.Setter
-import java.time.LocalDateTime
-import java.util.*
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -26,4 +26,6 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   @Column(name = "last_response", nullable = false)
   var lastResponse: LocalDateTime = LocalDateTime.now().minusDays(1)
   @Column(name = "user_notified", nullable = true) var userNotified: Boolean = true
+  @Column(name = "last_skip", nullable = false)
+  var lastSkip: LocalDateTime = LocalDateTime.now().minusDays(1)
 }
