@@ -218,7 +218,7 @@ class CommandService(
         } ?: User(username)
       )
 
-      if (skipCounterService.getSkipCounter() > (userConfig.skipValue?.toLong() ?: 5)) {
+      if (skipCounterService.getSkipCounter() >= (userConfig.skipValue?.toLong() ?: 5)) {
         cytubeDao.skipVideo()
         sendMessage(channel, "docJAM skipped the video")
       } else {
