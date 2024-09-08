@@ -6,10 +6,11 @@ import com.github.veccvs.djforsenbotkotlin.model.LastSong
 import com.github.veccvs.djforsenbotkotlin.repository.SongRepository
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.CommandService
+import com.github.veccvs.djforsenbotkotlin.service.SkipCounterService
+import java.time.LocalDateTime
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import java.time.LocalDateTime
 
 @Component
 class SongScheduler(
@@ -18,6 +19,7 @@ class SongScheduler(
   @Autowired private val userConfig: UserConfig,
   @Autowired private val commandService: CommandService,
   @Autowired private val userRepository: UserRepository,
+  @Autowired private val skipCounterService: SkipCounterService,
 ) {
   @Scheduled(fixedDelay = 2000)
   fun scheduleSong() {
@@ -48,11 +50,13 @@ class SongScheduler(
                             cytubeDao.getPlaylist()!!.queue[0].title.length,
                             )}",
           )
+          skipCounterService.resetSkipCounter()
         } else {
           commandService.sendMessage(
             userConfig.channelName!!,
             "docJAM now playing: ${cytubeDao.getPlaylist()!!.queue[0].title.substring(0, 50)}[...]",
           )
+          skipCounterService.resetSkipCounter()
         }
       }
     }
