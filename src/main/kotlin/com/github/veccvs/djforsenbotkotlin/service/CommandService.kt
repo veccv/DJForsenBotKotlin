@@ -7,17 +7,18 @@ import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.model.TwitchCommand
 import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.model.Video
+import com.github.veccvs.djforsenbotkotlin.repository.GachiSongRepository
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
 import com.github.veccvs.djforsenbotkotlin.utils.StreamInfo
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.stereotype.Service
 import java.text.Normalizer
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.regex.Pattern
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Service
 
 @Service
 class CommandService(
@@ -27,6 +28,7 @@ class CommandService(
   @Autowired private val userConfig: UserConfig,
   @Autowired private val songService: SongService,
   @Autowired private val skipCounterService: SkipCounterService,
+  @Autowired private val gachiSongRepository: GachiSongRepository,
 ) {
   private val twitchConnector = TwitchConnector()
 
@@ -86,10 +88,13 @@ class CommandService(
         ";s" -> {
           searchVideo(twitchCommand, channel, username)
         }
+        ";rg" -> {
+          searchVideo(TwitchCommand("", listOf(randomGachiSong())), channel, username)
+        }
         ";help" -> {
           sendMessage(
             channel,
-            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip",
+            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg",
           )
         }
         ";playlist" -> {
@@ -255,5 +260,9 @@ class CommandService(
       val seconds = duration.seconds % 60
       "${minutes}min ${seconds}sec"
     }
+  }
+
+  fun randomGachiSong(): String {
+    return gachiSongRepository.findAll().random().title.orEmpty()
   }
 }
