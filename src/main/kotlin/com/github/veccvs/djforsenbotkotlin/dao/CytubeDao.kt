@@ -1,5 +1,6 @@
 package com.github.veccvs.djforsenbotkotlin.dao
 
+import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.model.BotStatus
 import com.github.veccvs.djforsenbotkotlin.model.Playlist
 import com.github.veccvs.djforsenbotkotlin.model.Video
@@ -10,8 +11,11 @@ import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.getForEntity
 
 @Component
-class CytubeDao @Autowired constructor(private val restTemplate: RestTemplate) {
-  private val url = "http://cytubebot-base:7777/"
+class CytubeDao
+@Autowired
+constructor(private val restTemplate: RestTemplate, private val userConfig: UserConfig) {
+
+  private val url = userConfig.daoAddress
 
   fun getPlaylist(): Playlist? {
     val response: ResponseEntity<Playlist> = restTemplate.getForEntity("$url/playlist")

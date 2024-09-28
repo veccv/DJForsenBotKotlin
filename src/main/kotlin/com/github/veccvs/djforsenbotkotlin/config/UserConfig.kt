@@ -13,5 +13,6 @@ class UserConfig {
   @Value("\${chat.channel-name}") val channelName: String? = null
   @Value("\${user.minutes-to-skip-video}") val minutesToSkipVideo: String? = null
   @Value("\${user.skip-value}") val skipValue: String? = null
+  @Value("\${bot.dao-address}") val daoAddress: String? = null
   var lastSong: LastSong = LastSong()
 }
