@@ -2,6 +2,7 @@ package com.github.veccvs.djforsenbotkotlin.component
 
 import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.service.CommandService
+import com.github.veccvs.djforsenbotkotlin.utils.StreamInfo
 import jakarta.annotation.PostConstruct
 import org.pircbotx.Configuration
 import org.pircbotx.PircBotX
@@ -26,6 +27,8 @@ constructor(
   }
 
   fun sendMessage(channel: String, message: String) {
+    if (StreamInfo.streamEnabled() && channel == "#forsen") return
+
     bot.sendIRC().message(channel, message)
   }
 
