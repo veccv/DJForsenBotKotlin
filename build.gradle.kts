@@ -6,6 +6,7 @@ val okHttpVersion by extra("4.12.0")
 val jsonVersion by extra("20231013")
 val socketIoVersion by extra("2.1.0")
 val kotlinXCoroutinesVersion by extra("1.5.2")
+val dotenvVersion by extra("5.2.2")
 
 java {
   sourceCompatibility = JavaVersion.VERSION_21
@@ -74,6 +75,7 @@ dependencies {
   implementation("org.json:json:${jsonVersion}")
   implementation("io.socket:socket.io-client:${socketIoVersion}")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${kotlinXCoroutinesVersion}")
+  implementation("io.github.cdimascio:java-dotenv:${dotenvVersion}")
 }
 
 tasks.withType<KotlinCompile> {
