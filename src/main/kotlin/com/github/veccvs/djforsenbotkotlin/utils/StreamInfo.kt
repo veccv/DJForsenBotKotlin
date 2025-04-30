@@ -1,8 +1,8 @@
 package com.github.veccvs.djforsenbotkotlin.utils
 
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
+import org.json.JSONObject
 
 class StreamInfo {
   companion object {

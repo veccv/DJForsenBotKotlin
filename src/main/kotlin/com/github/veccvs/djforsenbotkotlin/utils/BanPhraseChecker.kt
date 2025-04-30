@@ -2,13 +2,16 @@ package com.github.veccvs.djforsenbotkotlin.utils
 
 import org.json.JSONObject
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 
 object BanPhraseChecker {
-  private const val url = "https://forsen.tv/api/v1/banphrases/test"
+  private const val URL_ENDPOINT = "https://forsen.tv/api/v1/banphrases/test"
+
+  // For testing purposes
+  internal var httpConnectionFactory: ((URI) -> HttpURLConnection)? = null
 
   fun check(text: String): Boolean {
-    val response = postRequest(if (text.isEmpty()) "dd" else text)
+    val response = postRequest(text.ifEmpty { "dd" })
     return response.getBoolean("banned")
   }
 
@@ -19,8 +22,9 @@ object BanPhraseChecker {
     else 0
   }
 
-  private fun postRequest(text: String): JSONObject {
-    val connection = URL(url).openConnection() as HttpURLConnection
+  internal fun postRequest(text: String): JSONObject {
+    val uri = URI(URL_ENDPOINT)
+    val connection = httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
     connection.setRequestProperty("Content-Type", "application/json; utf-8")
     connection.doOutput = true
