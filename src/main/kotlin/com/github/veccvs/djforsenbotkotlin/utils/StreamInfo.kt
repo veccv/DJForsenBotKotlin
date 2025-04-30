@@ -6,11 +6,19 @@ import org.json.JSONObject
 
 class StreamInfo {
   companion object {
+    // Factory for creating HttpURLConnection, can be replaced in tests
+    @JvmStatic
+    var httpConnectionFactory: ((URI) -> HttpURLConnection)? = null
+
     @JvmStatic
     fun streamEnabled(): Boolean {
       var cantResponse = false
-      val url = URI("https://api.twitch.tv/helix/streams?user_login=forsen").toURL()
-      with(url.openConnection() as HttpURLConnection) {
+      val uri = URI("https://api.twitch.tv/helix/streams?user_login=forsen")
+
+      // Use the factory if provided, otherwise use the default implementation
+      val connection = httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
+
+      with(connection) {
         requestMethod = "GET"
         setRequestProperty("Client-ID", "gp762nuuoqcoxypju8c569th9wz7q5")
         setRequestProperty("Authorization", "Bearer 2onenuu5ja8eycvov16x705b9ahjsa")
