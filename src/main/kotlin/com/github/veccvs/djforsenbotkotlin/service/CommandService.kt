@@ -73,7 +73,7 @@ class CommandService(
         ";help" -> {
           messageService.sendMessage(
             channel,
-            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;mysongs",
+            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when",
           )
         }
         ";playlist" -> {
@@ -82,7 +82,7 @@ class CommandService(
         ";skip" -> {
           skipCommand(username, channel)
         }
-        ";mysongs" -> {
+        ";when" -> {
           userSongFormatterService.getUserSongs(username, channel)
         }
         else -> {

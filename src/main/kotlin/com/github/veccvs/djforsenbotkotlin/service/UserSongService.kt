@@ -6,9 +6,11 @@ import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.repository.SongRepository
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.repository.UserSongRepository
+import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
 @Service
@@ -55,7 +57,8 @@ constructor(
    * Checks if a song has been played and updates its status This method is scheduled to run every
    * minute
    */
-  @Scheduled(fixedRate = 60000) // Run every minute
+  @Scheduled(fixedRate = 2000) // Run every 5 seconds
+  @Transactional
   fun checkPlayedSongs() {
     val playlist = cytubeDao.getPlaylist() ?: return
     val currentItem = playlist.queue.firstOrNull() ?: return
@@ -129,8 +132,38 @@ constructor(
    * @param username The username of the user
    * @return A list of UserSongs
    */
+  @Transactional
   fun getUnplayedUserSongs(username: String): List<UserSong> {
     val user = userRepository.findByUsername(username) ?: return emptyList()
     return userSongRepository.findByUser(user).filter { !it.played }
+  }
+
+  /**
+   * Checks if songs exist in the playlist when the application starts
+   * If a song is not in the playlist, mark it as played
+   */
+  @PostConstruct
+  @Transactional
+  fun checkSongsInPlaylist() {
+    val playlist = cytubeDao.getPlaylist() ?: return
+
+    // Find all unplayed user songs
+    val unplayedSongs = userSongRepository.findByPlayed(false)
+
+    // Check each unplayed song against the playlist
+    for (userSong in unplayedSongs) {
+      val songLink = userSong.song?.link ?: continue
+      val videoId = extractVideoId(songLink)
+
+      // Check if the song exists in the playlist
+      val songInPlaylist = playlist.queue.any { it.link.id == videoId }
+
+      // If the song is not in the playlist, mark it as played
+      if (!songInPlaylist) {
+        userSong.played = true
+        userSong.playedAt = LocalDateTime.now()
+        userSongRepository.save(userSong)
+      }
+    }
   }
 }
