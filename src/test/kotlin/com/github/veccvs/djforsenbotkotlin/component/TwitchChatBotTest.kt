@@ -74,6 +74,9 @@ class TwitchChatBotTest {
         // Mock the bot.sendIRC() method
         `when`(bot.sendIRC()).thenReturn(outputIRC)
 
+        // Mock bot.isConnected to return true so we don't retry
+        `when`(bot.isConnected).thenReturn(true)
+
         // Act
         twitchChatBot.sendMessage(channel, message)
 
