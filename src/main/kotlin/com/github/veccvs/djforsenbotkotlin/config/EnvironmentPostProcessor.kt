@@ -11,9 +11,14 @@ class EnvironmentPostProcessor : EnvironmentPostProcessor {
     environment: ConfigurableEnvironment,
     application: SpringApplication,
   ) {
-    val dotenv = Dotenv.load()
-    val dotenvProperties = dotenv.entries().associate { it.key to it.value }
-    val propertySource = MapPropertySource("dotenv", dotenvProperties)
-    environment.propertySources.addLast(propertySource)
+    try {
+      val dotenv = Dotenv.configure().ignoreIfMissing().load()
+      val dotenvProperties = dotenv.entries().associate { it.key to it.value }
+      val propertySource = MapPropertySource("dotenv", dotenvProperties)
+      environment.propertySources.addLast(propertySource)
+    } catch (e: Exception) {
+      // Log the exception but continue with application startup
+      println("Warning: Could not load .env file. Using environment variables only.")
+    }
   }
 }
