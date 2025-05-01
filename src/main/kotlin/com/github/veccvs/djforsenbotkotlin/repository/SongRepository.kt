@@ -6,4 +6,5 @@ import java.util.*
 
 interface SongRepository : JpaRepository<Song, UUID> {
   fun existsByLink(song: String): Boolean
+  fun findByLink(link: String): Song?
 }
