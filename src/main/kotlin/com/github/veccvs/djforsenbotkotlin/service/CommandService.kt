@@ -74,7 +74,7 @@ class CommandService(
         ";help" -> {
           messageService.sendMessage(
             channel,
-            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;remove",
+            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo",
           )
         }
         ";playlist" -> {
@@ -86,7 +86,7 @@ class CommandService(
         ";when" -> {
           userSongFormatterService.getUserSongs(username, channel)
         }
-        ";remove" -> {
+        ";undo" -> {
           removeSongCommand(username, channel)
         }
         else -> {
