@@ -139,6 +139,45 @@ constructor(
   }
 
   /**
+   * Gets the most recently added unplayed song for a user
+   *
+   * @param username The username of the user
+   * @return The most recently added unplayed song, or null if none exists
+   */
+  @Transactional
+  fun getMostRecentUnplayedUserSong(username: String): UserSong? {
+    val unplayedSongs = getUnplayedUserSongs(username)
+    return unplayedSongs.maxByOrNull { it.addedAt }
+  }
+
+  /**
+   * Removes the most recently added unplayed song for a user
+   * 
+   * @param username The username of the user
+   * @return The removed song, or null if no song was removed
+   */
+  @Transactional
+  fun removeRecentUserSong(username: String): UserSong? {
+    val song = getMostRecentUnplayedUserSong(username) ?: return null
+
+    // Check if the song was added within the last 5 minutes
+    val fiveMinutesAgo = LocalDateTime.now().minusMinutes(5)
+    if (song.addedAt.isBefore(fiveMinutesAgo)) {
+      return null
+    }
+
+    // Mark the song as played (effectively removing it from the unplayed list)
+    song.played = true
+    song.playedAt = LocalDateTime.now()
+    userSongRepository.save(song)
+
+    // Force initialization of the song entity to prevent LazyInitializationException
+    song.song?.link?.let { _ -> }
+
+    return song
+  }
+
+  /**
    * Checks if songs exist in the playlist when the application starts
    * If a song is not in the playlist, mark it as played
    */

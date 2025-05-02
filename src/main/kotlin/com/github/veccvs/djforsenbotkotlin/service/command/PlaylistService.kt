@@ -82,4 +82,15 @@ class PlaylistService(
   fun randomGachiSong(): String {
     return gachiSongRepository.findAll().random().title.orEmpty()
   }
+
+  /**
+   * Removes a video from the playlist
+   *
+   * @param videoUrl The URL of the video to remove
+   * @return True if the video was removed successfully, false otherwise
+   */
+  fun removeVideo(videoUrl: String): Boolean {
+    val playlist = cytubeDao.removeVideo(videoUrl)
+    return playlist != null
+  }
 }
