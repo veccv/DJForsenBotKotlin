@@ -70,4 +70,16 @@ constructor(private val restTemplate: RestTemplate, private val userConfig: User
   fun skipVideo() {
     restTemplate.put("$url/skip-song", null)
   }
+
+  /**
+   * Removes a video from the playlist by its URL
+   *
+   * @param videoUrl The URL of the video to remove
+   * @return The updated playlist, or null if the operation failed
+   */
+  fun removeVideo(videoUrl: String): Playlist? {
+    val response: ResponseEntity<Playlist> =
+      restTemplate.postForEntity("$url/remove-video?link=$videoUrl", null, Playlist::class.java)
+    return response.body
+  }
 }

@@ -140,6 +140,59 @@ class TimeRestrictionService(
   }
 
   /**
+   * Resets the user's video cooldown by setting lastAddedVideo to a day ago
+   * This allows the user to add a new video immediately
+   *
+   * @param username The username of the user
+   */
+  fun resetVideoCooldown(username: String) {
+    userRepository.save(
+      userRepository.findByUsername(username)?.apply {
+        lastAddedVideo = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()).minusDays(1)
+      } ?: User(username)
+    )
+  }
+
+  /**
+   * Checks if a user can remove a video
+   *
+   * @param username The username of the user
+   * @return True if the user can remove a video, false otherwise
+   */
+  fun canUserRemoveVideo(username: String): Boolean {
+    return canPerformTimeRestrictedAction(
+      username,
+      { it.lastRemovedVideo },
+      5, // 5 minutes cooldown for removing videos
+      TimeUnit.MINUTES
+    )
+  }
+
+  /**
+   * Gets the time until a user can remove a video
+   *
+   * @param username The username of the user
+   * @return The time until the user can remove a video
+   */
+  fun timeToNextRemoval(username: String): String {
+    val user = userRepository.findByUsername(username) ?: return "0"
+    return timeToNextAction(user.lastRemovedVideo, 5) // 5 minutes cooldown
+  }
+
+  /**
+   * Updates the user's last removal timestamp
+   *
+   * @param username The username of the user
+   */
+  fun setLastRemoval(username: String) {
+    userRepository.save(
+      userRepository.findByUsername(username)?.apply {
+        lastRemovedVideo = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+      } ?: User(username)
+    )
+  }
+
+  /**
    * Calculates the time until the next action can be performed
    *
    * @param lastActionTime The time of the last action
