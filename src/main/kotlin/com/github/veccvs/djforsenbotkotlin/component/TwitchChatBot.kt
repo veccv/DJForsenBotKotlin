@@ -16,24 +16,37 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
+/**
+ * Main Twitch chat bot component that connects to Twitch chat and handles messages.
+ * 
+ * This bot uses a separate anonymous chat monitor (TwitchChatMonitor) to verify
+ * that messages are actually appearing in the chat, providing a more reliable
+ * way to confirm message delivery than just checking the connection status.
+ */
 @Component
 class TwitchChatBot
 @Autowired
 constructor(
   @Lazy private val commandService: CommandService,
   @Lazy private val userConfig: UserConfig,
+  @Lazy private val chatMonitor: TwitchChatMonitor,
 ) : ListenerAdapter() {
   private lateinit var bot: PircBotX
   private val logger = LoggerFactory.getLogger(TwitchChatBot::class.java)
   private val maxRetries = 3
 
   override fun onMessage(event: MessageEvent) {
-    commandService.commandHandler(event.user?.nick ?: "", event.message, event.channel.name)
+    val sender = event.user?.nick ?: ""
+    val message = event.message
+    val channel = event.channel.name
+
+    logger.info("[BOT RECEIVED] Message from $sender in $channel: $message")
+    commandService.commandHandler(sender, message, channel)
   }
 
   fun sendMessage(channel: String, message: String) {
     if (StreamInfo.streamEnabled() && channel == "#forsen") {
-      logger.info("Not sending message to #forsen while stream is enabled: $message")
+      logger.info("[BOT] Not sending message to #forsen while stream is enabled: $message")
       return
     }
 
@@ -42,7 +55,7 @@ constructor(
       sendMessageWithRetry(channel, message)
     } else {
       // For test environment - just send once without retries
-      logger.info("Test environment detected, sending message without retries: $message")
+      logger.info("[BOT] Test environment detected, sending message without retries: $message")
       bot.sendIRC().message(channel, message)
     }
   }
@@ -60,16 +73,25 @@ constructor(
     }
   }
 
-  /** Sends a message with retry logic for the production environment */
+  /**
+   * Sends a message with retry logic for the production environment.
+   * 
+   * This method not only attempts to send the message but also verifies that
+   * the message actually appears in the chat using the TwitchChatMonitor.
+   * This provides a more reliable way to confirm message delivery than just
+   * checking the connection status.
+   */
   private fun sendMessageWithRetry(channel: String, message: String) {
     var success = false
     var attempts = 0
     var lastException: Exception? = null
 
+    logger.info("[BOT] Starting message send process to $channel: $message")
+
     while (!success && attempts < maxRetries) {
       attempts++
       try {
-        logger.info("Sending message to $channel (attempt $attempts): $message")
+        logger.info("[BOT SEND] Sending message to $channel (attempt $attempts/$maxRetries): $message")
         bot.sendIRC().message(channel, message)
 
         // Add a small delay to ensure the message is processed
@@ -79,20 +101,26 @@ constructor(
           Thread.currentThread().interrupt()
         }
 
-        // Verify the message was sent by checking connection status
+        // First check if the bot is connected
         if (bot.isConnected) {
-          success = true
-          logger.info("Message sent successfully to $channel: $message")
+          // Then use the chat monitor to verify the message was actually received in chat
+          logger.info("[BOT VERIFICATION] Verifying message appears in chat: $message")
+          if (chatMonitor.verifyMessageSent(message, 5)) {
+            success = true
+            logger.info("[BOT VERIFICATION SUCCESS] Message verified in chat: $message")
+          } else {
+            logger.warn("[BOT VERIFICATION FAILED] Message sent but not verified in chat, retrying... (attempt $attempts/$maxRetries)")
+          }
         } else {
-          logger.warn("Bot is not connected, retrying... (attempt $attempts)")
+          logger.warn("[BOT CONNECTION] Bot is not connected, retrying... (attempt $attempts/$maxRetries)")
           // Try to reconnect if not connected
           if (!bot.isConnected) {
             thread(start = true) {
               try {
-                logger.info("Attempting to reconnect...")
+                logger.info("[BOT RECONNECT] Attempting to reconnect to Twitch IRC...")
                 bot.startBot()
               } catch (e: Exception) {
-                logger.error("Failed to reconnect: ${e.message}")
+                logger.error("[BOT RECONNECT FAILED] Failed to reconnect: ${e.message}")
               }
             }
             try {
@@ -104,7 +132,7 @@ constructor(
         }
       } catch (e: Exception) {
         lastException = e
-        logger.error("Error sending message to $channel (attempt $attempts): ${e.message}")
+        logger.error("[BOT ERROR] Error sending message to $channel (attempt $attempts/$maxRetries): ${e.message}")
         try {
           TimeUnit.MILLISECONDS.sleep(500L * attempts) // Exponential backoff
         } catch (e: InterruptedException) {
@@ -114,23 +142,44 @@ constructor(
     }
 
     if (!success) {
-      logger.error("Failed to send message after $maxRetries attempts: $message", lastException)
+      logger.error("[BOT SEND FAILED] Failed to send message after $maxRetries attempts: $message", lastException)
     }
   }
 
   @PostConstruct
   fun startBot() {
+    val channelName = userConfig.channelName ?: "#veccvs"
+
+    logger.info("=================================================")
+    logger.info("[BOT STARTUP] Initializing Twitch chat bot")
+    logger.info("[BOT STARTUP] Bot will connect as: djfors_")
+    logger.info("[BOT STARTUP] Target channel: $channelName")
+    logger.info("[BOT STARTUP] Message verification is enabled via TwitchChatMonitor")
+    logger.info("=================================================")
+
     val configuration =
       Configuration.Builder()
         .setName("djfors_")
         .setServerPassword("oauth:ln9r4pdy3vjha3c83dn0b2cbyem87r")
         .addServer("irc.chat.twitch.tv")
-        .addAutoJoinChannel(userConfig.channelName ?: "#veccvs")
+        .addAutoJoinChannel(channelName)
         .addListener(this)
         .setAutoReconnect(true)
         .addCapHandler(EnableCapHandler("twitch.tv/membership"))
+        .addCapHandler(EnableCapHandler("twitch.tv/commands"))
+        .addCapHandler(EnableCapHandler("twitch.tv/tags"))
         .buildConfiguration()
+
+    logger.info("[BOT STARTUP] Enabled Twitch capabilities: membership, commands, tags")
     bot = PircBotX(configuration)
-    Thread { bot.startBot() }.start()
+
+    Thread { 
+      try {
+        logger.info("[BOT STARTUP] Starting Twitch chat bot for channel: $channelName")
+        bot.startBot() 
+      } catch (e: Exception) {
+        logger.error("[BOT STARTUP FAILED] Error starting bot: ${e.message}", e)
+      }
+    }.start()
   }
 }

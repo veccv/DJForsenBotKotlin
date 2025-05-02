@@ -31,6 +31,9 @@ class TwitchChatBotTest {
     @Mock
     private lateinit var outputIRC: OutputIRC
 
+    @Mock
+    private lateinit var chatMonitor: TwitchChatMonitor
+
     private lateinit var twitchChatBot: TwitchChatBot
 
     // Store the original StreamInfo.streamEnabled method
@@ -39,7 +42,7 @@ class TwitchChatBotTest {
     @BeforeEach
     fun setUp() {
         // Create TwitchChatBot with mocked dependencies
-        twitchChatBot = TwitchChatBot(commandService, userConfig)
+        twitchChatBot = TwitchChatBot(commandService, userConfig, chatMonitor)
 
         // Use reflection to set the bot field
         val botField: Field = TwitchChatBot::class.java.getDeclaredField("bot")
@@ -76,6 +79,9 @@ class TwitchChatBotTest {
 
         // Mock bot.isConnected to return true so we don't retry
         `when`(bot.isConnected).thenReturn(true)
+
+        // Mock chatMonitor.verifyMessageSent to return true
+        `when`(chatMonitor.verifyMessageSent(message, 5)).thenReturn(true)
 
         // Act
         twitchChatBot.sendMessage(channel, message)
