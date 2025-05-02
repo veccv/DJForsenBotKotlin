@@ -1,11 +1,13 @@
 package com.github.veccvs.djforsenbotkotlin.service.command
 
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
+import com.github.veccvs.djforsenbotkotlin.model.Playlist
 import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.service.UserSongService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 /** Service for formatting user songs for display */
 @Service
@@ -14,6 +16,10 @@ class UserSongFormatterService(
   @Autowired private val messageService: MessageService,
   @Autowired private val cytubeDao: CytubeDao,
 ) {
+  // Store the last playlist state and timestamp to calculate elapsed time
+  private var lastPlaylist: Playlist? = null
+  private var lastUpdateTime: Long = 0
+
   /**
    * Formats a list of songs for display
    *
@@ -54,20 +60,79 @@ class UserSongFormatterService(
    * Calculates the estimated time until a song is played
    *
    * @param songLink The link to the song
-   * @return The estimated time in minutes, or null if the song is not in the queue
+   * @return The estimated time in MM:ss format, or null if the song is not in the queue
    */
-  fun calculateEstimatedTime(songLink: String): Int? {
-    val playlist = cytubeDao.getPlaylist() ?: return null
+  fun calculateEstimatedTime(songLink: String): String? {
+    val currentPlaylist = cytubeDao.getPlaylist() ?: return null
     val videoId = extractVideoId(songLink)
+    val currentTime = Instant.now().toEpochMilli()
 
+    println("[DEBUG] Calculating estimated time for video ID: $videoId")
+    println(
+      "[DEBUG] Current playlist paused: ${currentPlaylist.paused}, currentTime: ${currentPlaylist.currentTime}"
+    )
+
+    // Start with the time already elapsed in the current video
     var totalTime = 0
-    for (item in playlist.queue) {
-      if (item.link.id == videoId) {
-        return totalTime / 60 // Convert seconds to minutes
+
+    // If we have a previous playlist state, calculate the elapsed time
+    if (lastPlaylist != null && lastUpdateTime > 0 && !currentPlaylist.paused) {
+      val elapsedSeconds = ((currentTime - lastUpdateTime) / 1000).toInt()
+      println("[DEBUG] Time since last update: $elapsedSeconds seconds")
+
+      // If the playlist hasn't changed (same video is playing), adjust the current time
+      if (
+        lastPlaylist?.queue?.isNotEmpty() == true &&
+          currentPlaylist.queue.isNotEmpty() &&
+          lastPlaylist?.queue?.get(0)?.link?.id == currentPlaylist.queue[0].link.id
+      ) {
+
+        // Calculate the adjusted current time
+        val adjustedCurrentTime = currentPlaylist.currentTime + elapsedSeconds
+        println(
+          "[DEBUG] Adjusted currentTime: $adjustedCurrentTime (original: ${currentPlaylist.currentTime}, elapsed: $elapsedSeconds)"
+        )
+
+        // Subtract the adjusted current time from the total
+        totalTime -= adjustedCurrentTime
+        println("[DEBUG] Subtracted adjusted currentTime: $totalTime")
+      } else {
+        // If the playlist has changed, just use the current time from the playlist
+        totalTime -= currentPlaylist.currentTime
+        println(
+          "[DEBUG] Playlist changed, using original currentTime: ${currentPlaylist.currentTime}"
+        )
       }
-      totalTime += item.duration
+    } else if (!currentPlaylist.paused) {
+      // If we don't have a previous state, just use the current time from the playlist
+      totalTime -= currentPlaylist.currentTime
+      println(
+        "[DEBUG] No previous state, using original currentTime: ${currentPlaylist.currentTime}"
+      )
     }
 
+    // Store the current playlist and timestamp for the next call
+    lastPlaylist = currentPlaylist
+    lastUpdateTime = currentTime
+
+    // Add the duration of all videos in the queue until we find the target video
+    for (item in currentPlaylist.queue) {
+      println("[DEBUG] Queue item: ${item.title}, duration: ${item.duration}, id: ${item.link.id}")
+
+      if (item.link.id == videoId) {
+        // If the total time is negative, it means the video will play very soon
+        val seconds = Math.max(0, totalTime)
+        val minutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        val formattedTime = String.format("%02d:%02d", minutes, remainingSeconds)
+        println("[DEBUG] Found target video. Total time: $totalTime, formatted: $formattedTime")
+        return formattedTime
+      }
+      totalTime += item.duration
+      println("[DEBUG] Added duration: $totalTime")
+    }
+
+    println("[DEBUG] Video not found in queue")
     return null // Song not found in queue
   }
 
@@ -126,7 +191,7 @@ class UserSongFormatterService(
         val estimatedTime = calculateEstimatedTime(songLink)
 
         if (estimatedTime != null) {
-          "$title (~${estimatedTime}min)"
+          "$title (${estimatedTime})"
         } else {
           "$title (not in queue)"
         }
