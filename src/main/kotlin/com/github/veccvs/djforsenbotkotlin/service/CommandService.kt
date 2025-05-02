@@ -35,12 +35,17 @@ class CommandService(
 
   /** Main command handler that processes user commands */
   fun commandHandler(username: String, message: String, channel: String) {
+    println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
+
     if (message.startsWith("!djfors_")) {
+      println("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
 
     val command = commandParserService.detectCommand(message)
+    println("[COMMAND HANDLER] Detected command: $command")
+
     if (command != null) {
       // Create user if not exists
       userRepository.findByUsername(username) ?: userRepository.save(User(username))
