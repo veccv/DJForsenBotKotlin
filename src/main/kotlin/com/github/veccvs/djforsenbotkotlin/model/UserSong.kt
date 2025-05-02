@@ -21,7 +21,7 @@ class UserSong {
     @JoinColumn(name = "user_id", nullable = false)
     var user: User? = null
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "song_id", nullable = false)
     var song: Song? = null
 
