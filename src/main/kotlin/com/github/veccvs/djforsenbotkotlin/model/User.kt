@@ -28,4 +28,6 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   @Column(name = "user_notified", nullable = true) var userNotified: Boolean = true
   @Column(name = "last_skip", nullable = false)
   var lastSkip: LocalDateTime = LocalDateTime.now().minusDays(1)
+  @Column(name = "last_removed_video", nullable = false)
+  var lastRemovedVideo: LocalDateTime = LocalDateTime.now().minusDays(1)
 }

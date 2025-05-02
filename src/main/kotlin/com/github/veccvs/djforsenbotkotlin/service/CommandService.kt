@@ -24,6 +24,7 @@ class CommandService(
   @Autowired private val userRepository: UserRepository,
   @Autowired private val userConfig: UserConfig,
   @Autowired private val skipCounterService: SkipCounterService,
+  @Autowired private val userSongService: UserSongService,
 ) {
   private val twitchConnector = TwitchConnector()
 
@@ -73,7 +74,7 @@ class CommandService(
         ";help" -> {
           messageService.sendMessage(
             channel,
-            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when",
+            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;remove",
           )
         }
         ";playlist" -> {
@@ -84,6 +85,9 @@ class CommandService(
         }
         ";when" -> {
           userSongFormatterService.getUserSongs(username, channel)
+        }
+        ";remove" -> {
+          removeSongCommand(username, channel)
         }
         else -> {
           messageService.sendMessage(
@@ -134,5 +138,62 @@ class CommandService(
       currentSkips,
       timeToNextSkip,
     )
+  }
+
+  /** Handles the remove song command */
+  fun removeSongCommand(username: String, channel: String) {
+    // Check if user can remove a video (5-minute cooldown)
+    if (!timeRestrictionService.canUserRemoveVideo(username)) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You can remove a video every 5 minutes. Time to next removal: ${
+          timeRestrictionService.timeToNextRemoval(username)
+        }"
+      )
+      return
+    }
+
+    // Get the most recent unplayed song for the user
+    val song = userSongService.removeRecentUserSong(username)
+
+    if (song == null) {
+      // No song to remove or song was added more than 5 minutes ago
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You don't have any recently added songs to remove (must be within 5 minutes of adding)"
+      )
+      return
+    }
+
+    // Get the song link
+    val songLink = song.song?.link
+    if (songLink == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Error removing song. Please try again."
+      )
+      return
+    }
+
+    // Remove the song from the playlist
+    val success = playlistService.removeVideo(songLink)
+
+    if (success) {
+      // Reset the user's cooldown to allow adding another song immediately
+      timeRestrictionService.resetVideoCooldown(username)
+
+      // Set the last removal timestamp
+      timeRestrictionService.setLastRemoval(username)
+
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Removed your song '${song.title}'. You can add another song now."
+      )
+    } else {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Error removing song from playlist. Please try again."
+      )
+    }
   }
 }
