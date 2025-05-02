@@ -148,7 +148,7 @@ class CommandService(
         channel,
         "docJAM @$username You can remove a video every 5 minutes. Time to next removal: ${
           timeRestrictionService.timeToNextRemoval(username)
-        }"
+        }",
       )
       return
     }
@@ -160,7 +160,7 @@ class CommandService(
       // No song to remove or song was added more than 5 minutes ago
       messageService.sendMessage(
         channel,
-        "docJAM @$username You don't have any recently added songs to remove (must be within 5 minutes of adding)"
+        "docJAM @$username You don't have any recently added songs to remove (must be within 5 minutes of adding)",
       )
       return
     }
@@ -170,7 +170,7 @@ class CommandService(
     if (songLink == null) {
       messageService.sendMessage(
         channel,
-        "docJAM @$username Error removing song. Please try again."
+        "docJAM @$username Error removing song. Please try again.",
       )
       return
     }
@@ -187,12 +187,12 @@ class CommandService(
 
       messageService.sendMessage(
         channel,
-        "docJAM @$username Removed your song '${song.title}'. You can add another song now."
+        "docJAM @$username Removed your song '${song.title}'. You can add another song now.",
       )
     } else {
       messageService.sendMessage(
         channel,
-        "docJAM @$username Error removing song from playlist. Please try again."
+        "docJAM @$username Error removing song from playlist. Please try again.",
       )
     }
   }
