@@ -52,7 +52,7 @@ class UserSongFormatterService(
    * @return The formatted string
    */
   fun formatUnplayedSongs(songs: List<UserSong>): String {
-    val sortedSongs = songs.sortedByDescending { it.addedAt }
+    val sortedSongs = songs.sortedBy { it.addedAt }
     return formatSongList(sortedSongs)
   }
 
@@ -174,8 +174,8 @@ class UserSongFormatterService(
 
     val message = StringBuilder("@$username docJAM Your unplayed songs: ")
 
-    // Sort by addedAt timestamp in descending order to get the most recently added unplayed songs
-    val sortedSongs = unplayedSongs.sortedByDescending { it.addedAt }
+    // Sort by addedAt timestamp in ascending order
+    val sortedSongs = unplayedSongs.sortedBy { it.addedAt }
 
     // Format songs with estimated time
     val formattedSongs =
