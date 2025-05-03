@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="20250503-01" author="system">
+        <createTable tableName="playlist">
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_playlist"/>
+            </column>
+            <column name="time" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="locked" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="paused" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="current_time" type="FLOAT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="current_item_id" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="20250503-02" author="system">
+        <createTable tableName="media_link">
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_media_link"/>
+            </column>
+            <column name="type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="media_id" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="20250503-03" author="system">
+        <createTable tableName="playlist_item">
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_playlist_item"/>
+            </column>
+            <column name="uid" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="temp" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="duration" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="playlist_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="media_link_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="20250503-04" author="system">
+        <addForeignKeyConstraint baseTableName="playlist" baseColumnNames="current_item_id"
+                                 constraintName="fk_playlist_current_item"
+                                 referencedTableName="playlist_item" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="playlist_item" baseColumnNames="playlist_id"
+                                 constraintName="fk_playlist_item_playlist"
+                                 referencedTableName="playlist" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="playlist_item" baseColumnNames="media_link_id"
+                                 constraintName="fk_playlist_item_media_link"
+                                 referencedTableName="media_link" referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

@@ -2,7 +2,6 @@ package com.github.veccvs.djforsenbotkotlin.service.command
 
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.model.Playlist
-import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.service.UserSongService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
@@ -21,42 +20,6 @@ class UserSongFormatterService(
   private var lastUpdateTime: Long = 0
 
   /**
-   * Formats a list of songs for display
-   *
-   * @param songs The list of songs to format
-   * @return The formatted string
-   */
-  fun formatSongList(songs: List<UserSong>): String {
-    val formattedSongs = songs.take(3).joinToString(", ") { it.title ?: "Unknown" }
-
-    val suffix = if (songs.size > 3) " and ${songs.size - 3} more" else ""
-
-    return formattedSongs + suffix
-  }
-
-  /**
-   * Formats a list of played songs for display
-   *
-   * @param songs The list of played songs to format
-   * @return The formatted string
-   */
-  fun formatPlayedSongs(songs: List<UserSong>): String {
-    val sortedSongs = songs.sortedByDescending { it.playedAt }
-    return formatSongList(sortedSongs)
-  }
-
-  /**
-   * Formats a list of unplayed songs for display
-   *
-   * @param songs The list of unplayed songs to format
-   * @return The formatted string
-   */
-  fun formatUnplayedSongs(songs: List<UserSong>): String {
-    val sortedSongs = songs.sortedBy { it.addedAt }
-    return formatSongList(sortedSongs)
-  }
-
-  /**
    * Calculates the estimated time until a song is played
    *
    * @param songLink The link to the song
@@ -73,59 +36,95 @@ class UserSongFormatterService(
     )
 
     // Initialize total time to 0
-    var totalTime = 0
+    var totalTime = 0F
 
-    // Calculate adjusted current time if we have a previous playlist state
+    // Calculate elapsed time since the last update if we have previous data
     var adjustedCurrentTime = currentPlaylist.currentTime
     if (lastPlaylist != null && lastUpdateTime > 0 && !currentPlaylist.paused) {
-      val elapsedSeconds = ((currentTime - lastUpdateTime) / 1000).toInt()
-      println("[DEBUG] Time since last update: $elapsedSeconds seconds")
+      // Calculate elapsed seconds since the last update
+      val elapsedMillis = currentTime - lastUpdateTime
+      val elapsedSeconds = (elapsedMillis / 1000).toInt()
 
-      // If the playlist hasn't changed (same video is playing), adjust the current time
+      // Only adjust if the playlist item is the same as before
       if (
         lastPlaylist?.queue?.isNotEmpty() == true &&
           currentPlaylist.queue.isNotEmpty() &&
           lastPlaylist?.queue?.get(0)?.link?.id == currentPlaylist.queue[0].link.id
       ) {
-        // Calculate the adjusted current time
-        adjustedCurrentTime = currentPlaylist.currentTime + elapsedSeconds
+
+        // Adjust the current time by adding elapsed seconds
+        adjustedCurrentTime =
+          (currentPlaylist.currentTime + elapsedSeconds).coerceAtMost(
+            currentPlaylist.queue[0].duration.toFloat()
+          )
+
         println(
           "[DEBUG] Adjusted currentTime: $adjustedCurrentTime (original: ${currentPlaylist.currentTime}, elapsed: $elapsedSeconds)"
         )
       }
     }
 
-    // Store the current playlist and timestamp for the next call
-    lastPlaylist = currentPlaylist
-    lastUpdateTime = currentTime
-
     // Add the duration of all videos in the queue until we find the target video
     for ((index, item) in currentPlaylist.queue.withIndex()) {
       println("[DEBUG] Queue item: ${item.title}, duration: ${item.duration}, id: ${item.link.id}")
 
+      // Calculate the time to add for this item
+      var timeToAdd: Float
+      // For the first video (currently playing), only add the remaining time
+      if (index == 0 && !currentPlaylist.paused) {
+        timeToAdd = 0F.coerceAtLeast(item.duration - adjustedCurrentTime)
+        println(
+          "[DEBUG] Added remaining duration for current video: $timeToAdd, total: ${totalTime + timeToAdd}"
+        )
+      } else {
+        timeToAdd = item.duration.toFloat()
+        println("[DEBUG] Added full duration: ${item.duration}, total: ${totalTime + timeToAdd}")
+      }
+
+      // Check if this is the target video
       if (item.link.id == videoId) {
-        // If the total time is negative, it means the video will play very soon
-        val seconds = Math.max(0, totalTime)
-        val minutes = seconds / 60
-        val remainingSeconds = seconds % 60
+        // If this is the currently playing video, return the remaining time for this video
+        if (index == 0 && !currentPlaylist.paused) {
+          val remainingSeconds = 0F.coerceAtLeast(item.duration - adjustedCurrentTime)
+          val minutes = (remainingSeconds / 60).toInt()
+          val seconds = (remainingSeconds % 60).toInt()
+          val formattedTime = String.format("%02d:%02d", minutes, seconds)
+          println(
+            "[DEBUG] Found target video (currently playing). Remaining time: $remainingSeconds, formatted: $formattedTime"
+          )
+
+          // Store the current playlist and timestamp for the next call
+          lastPlaylist = currentPlaylist
+          lastUpdateTime = currentTime
+
+          return formattedTime
+        }
+
+        // Otherwise, return the total time until this video starts playing
+        val seconds = 0F.coerceAtLeast(totalTime)
+        val minutes = (seconds / 60).toInt()
+        val remainingSeconds = (seconds % 60).toInt()
         val formattedTime = String.format("%02d:%02d", minutes, remainingSeconds)
         println("[DEBUG] Found target video. Total time: $totalTime, formatted: $formattedTime")
+
+        // Store the current playlist and timestamp for the next call
+        lastPlaylist = currentPlaylist
+        lastUpdateTime = currentTime
+
         return formattedTime
       }
 
-      // For the first video (currently playing), only add the remaining time
-      if (index == 0 && !currentPlaylist.paused) {
-        val remainingTime = Math.max(0, item.duration - adjustedCurrentTime)
-        totalTime += remainingTime
-        println("[DEBUG] Added remaining duration for current video: $remainingTime, total: $totalTime")
-      } else {
-        totalTime += item.duration
-        println("[DEBUG] Added full duration: ${item.duration}, total: $totalTime")
-      }
+      // Add the time for this item to the total
+      totalTime += timeToAdd
     }
 
     println("[DEBUG] Video not found in queue")
-    return null // Song not found in queue
+
+    // Store the current playlist and timestamp for the next call
+    lastPlaylist = currentPlaylist
+    lastUpdateTime = currentTime
+
+    return null // Song not found in the queue
   }
 
   /**
@@ -135,12 +134,12 @@ class UserSongFormatterService(
    * @return The video ID
    */
   private fun extractVideoId(link: String): String {
-    // Handle youtu.be links
+    // Handle YouTube links
     if (link.contains("youtu.be")) {
       return link.substringAfterLast("/")
     }
 
-    // Handle youtube.com links
+    // Handle YouTube.com links
     if (link.contains("youtube.com")) {
       return link.substringAfter("v=").substringBefore("&")
     }
@@ -183,7 +182,9 @@ class UserSongFormatterService(
         val estimatedTime = calculateEstimatedTime(songLink)
 
         if (estimatedTime != null) {
-          "$title (${estimatedTime})"
+          // Don't adjust the estimated time - use the calculated time directly
+          // The calculation in calculateEstimatedTime is already accurate
+          "$title (in ~${estimatedTime})"
         } else {
           "$title (not in queue)"
         }
@@ -197,7 +198,7 @@ class UserSongFormatterService(
       message.append(" and ${sortedSongs.size - 3} more")
     }
 
-    // Ensure message length is limited to 150 characters
+    // Ensure the message length is limited to 150 characters
     var finalMessage = message.toString()
     if (finalMessage.length > 150) {
       finalMessage = finalMessage.substring(0, 147) + "..."

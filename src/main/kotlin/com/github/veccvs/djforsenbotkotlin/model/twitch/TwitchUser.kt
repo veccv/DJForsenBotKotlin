@@ -13,7 +13,7 @@ data class TwitchUser(
   @JsonProperty("offline_image_url") val offlineImageUrl: String,
   @JsonProperty("view_count") val viewCount: Int,
   @JsonProperty("created_at") val createdAt: String,
-  @JsonProperty("email") val email: String?,
+  @JsonProperty("email") val email: String?
 )
 
 data class TwitchResponse(val data: List<TwitchUser>)
