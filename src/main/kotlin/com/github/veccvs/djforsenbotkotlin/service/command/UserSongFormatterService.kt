@@ -163,7 +163,7 @@ class UserSongFormatterService(
       return
     }
 
-    val message = StringBuilder("@$username docJAM Your unplayed songs: ")
+    val message = StringBuilder("@$username docJAM ")
 
     // Sort by addedAt timestamp in ascending order
     val sortedSongs = unplayedSongs.sortedBy { it.addedAt }
