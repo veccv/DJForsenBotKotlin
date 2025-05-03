@@ -10,8 +10,15 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 
 /**
- * Main service for handling Twitch commands Delegates to specialized services for specific
- * functionality
+ * Service responsible for managing and executing commands in a Twitch chat context. It processes
+ * user input, interprets commands, interacts with dependent services, and sends appropriate
+ * responses or performs targeted actions.
+ *
+ * This class primarily focuses on handling custom commands, performing actions such as searching
+ * for videos, managing playlists, working with user-requested commands, and enforcing time-based
+ * restrictions.
+ *
+ * Dependencies for this service are injected via constructor-based autowiring.
  */
 @Service
 class CommandService(
@@ -26,92 +33,151 @@ class CommandService(
   @Autowired private val skipCounterService: SkipCounterService,
   @Autowired private val userSongService: UserSongService,
 ) {
+  /**
+   * Companion object for the CommandService class. Acts as a container for shared constants and
+   * static-like properties/methods.
+   */
+  companion object {
+    /**
+     * The constant link to the Cytube room used by the application. This link is primarily used
+     * within the CommandService for sending users to the shared Cytube room. It is used in response
+     * to specific commands such as "; link" or "; where".
+     */
+    private const val CYTUBE_LINK = "https://cytu.be/r/forsenboys"
+  }
+
+  /**
+   * An instance of TwitchConnector used for interacting with Twitch services such as sending
+   * whispers. Acts as a utility to handle Twitch-specific actions required by CommandService.
+   */
   private val twitchConnector = TwitchConnector()
 
-  /** Delegates to MessageService.sendMessage */
+  /**
+   * Sends a message to the specified channel.
+   *
+   * @param channel The name of the channel where the message will be sent.
+   * @param message The content of the message to be sent.
+   */
   fun sendMessage(channel: String, message: String) {
     messageService.sendMessage(channel, message)
   }
 
-  /** Main command handler that processes user commands */
+  /**
+   * Handles commands sent by a user in a Twitch chat channel. It processes the input message,
+   * identifies commands, and takes the appropriate actions based on the detected command.
+   *
+   * @param username The username of the Twitch user who sent the message.
+   * @param message The content of the chat message sent by the user.
+   * @param channel The Twitch channel where the message was sent.
+   */
   fun commandHandler(username: String, message: String, channel: String) {
     println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
-
     if (message.startsWith("!djfors_")) {
       println("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
-
     val command = commandParserService.detectCommand(message)
     println("[COMMAND HANDLER] Detected command: $command")
-
     if (command != null) {
-      // Create user if not exists
       userRepository.findByUsername(username) ?: userRepository.save(User(username))
-
-      // Check if user can respond to command
       if (!timeRestrictionService.canResponseToCommand(username)) return
-
-      // Update last response time
       timeRestrictionService.setLastResponse(username)
-
-      // Parse command and handle it
       val twitchCommand = commandParserService.parseCommand(message)
-      when (twitchCommand?.command) {
-        ";link",
-        ";where" -> {
-          messageService.sendMessage(
-            channel,
-            "docJAM @${username} I sent you a whisper with the link forsenCD ",
-          )
-          twitchConnector.sendWhisper(username, "https://cytu.be/r/forsenboys")
-        }
-        ";search",
-        ";s" -> {
-          handleSearchCommand(twitchCommand, channel, username)
-        }
-        ";rg" -> {
-          val randomGachiSong = playlistService.randomGachiSong()
-          val gachiCommand = TwitchCommand("", listOf(randomGachiSong))
-          handleSearchCommand(gachiCommand, channel, username)
-        }
-        ";help" -> {
-          messageService.sendMessage(
-            channel,
-            "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo",
-          )
-        }
-        ";playlist" -> {
-          playlistService.getPlaylist(username, channel)
-        }
-        ";skip" -> {
-          skipCommand(username, channel)
-        }
-        ";when" -> {
-          userSongFormatterService.getUserSongs(username, channel)
-        }
-        ";undo" -> {
-          removeSongCommand(username, channel)
-        }
-        else -> {
-          messageService.sendMessage(
-            channel,
-            "docJAM @$username Unknown command, try ;link, ;search or ;help",
-          )
-        }
+      handleDetectedCommand(twitchCommand, username, channel)
+    }
+  }
+
+  /**
+   * Handles the execution of detected Twitch commands by parsing the command and delegating the
+   * appropriate action based on the given command type.
+   *
+   * @param twitchCommand The detected Twitch command to handle. May be null if no command is
+   *   detected.
+   * @param username The username of the user who issued the command.
+   * @param channel The channel in which the command was issued.
+   */
+  private fun handleDetectedCommand(
+    twitchCommand: TwitchCommand?,
+    username: String,
+    channel: String,
+  ) {
+    val helpMessage =
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo"
+    val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
+    when (twitchCommand?.command) {
+      ";link",
+      ";where" -> {
+        messageService.sendMessage(
+          channel,
+          "docJAM @${username} I sent you a whisper with the link forsenCD ",
+        )
+        twitchConnector.sendWhisper(username, CYTUBE_LINK)
+      }
+
+      ";search",
+      ";s" -> {
+        handleSearchCommand(twitchCommand, channel, username)
+      }
+
+      ";rg" -> {
+        handleSearchCommand(
+          TwitchCommand("", listOf(playlistService.randomGachiSong())),
+          channel,
+          username,
+        )
+      }
+
+      ";help" -> {
+        messageService.sendMessage(channel, helpMessage)
+      }
+
+      ";playlist" -> {
+        playlistService.getPlaylist(username, channel)
+      }
+
+      ";skip" -> {
+        skipCommand(username, channel)
+      }
+
+      ";when" -> {
+        userSongFormatterService.getUserSongs(username, channel)
+      }
+
+      ";undo" -> {
+        removeSongCommand(username, channel)
+      }
+
+      else -> {
+        messageService.sendMessage(channel, unknownCommandMessage)
       }
     }
   }
 
-  /** Handles the search command */
+  /**
+   * Handles the "; search" or "; s" command by performing a video search based on the provided
+   * Twitch command. Verifies if the user can add a video within the channel before initiating the
+   * search.
+   *
+   * @param twitchCommand The parsed Twitch command containing the search query and parameters.
+   * @param channel The Twitch channel where the command was issued.
+   * @param username The username of the user who issued the command.
+   */
   private fun handleSearchCommand(twitchCommand: TwitchCommand, channel: String, username: String) {
-    if (canUserAddVideoHandler(username, channel)) return
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
     videoSearchService.searchVideo(twitchCommand, channel, username)
   }
 
-  /** Checks if a user can add a video and sends a message if they can't */
-  private fun canUserAddVideoHandler(username: String, channel: String): Boolean {
+  /**
+   * Checks whether the specified user can add a video and notifies the user via the specified
+   * channel if they are restricted from doing so due to cooldown limits.
+   *
+   * @param username The username of the user attempting to add a video.
+   * @param channel The communication channel to send the restriction notification if required.
+   * @return True, if the user is restricted from adding a video and a notification was sent, false
+   *   otherwise.
+   */
+  private fun checkAndNotifyUserCanAddVideo(username: String, channel: String): Boolean {
     if (!timeRestrictionService.canUserAddVideo(username)) {
       messageService.sendMessage(
         channel,
@@ -124,17 +190,22 @@ class CommandService(
     return false
   }
 
-  /** Handles the skip command */
+  /**
+   * Handles the skip command for a given user in a specific channel. Determines if the user is
+   * allowed to skip, calculates the skip-related parameters, and invokes the playlist service to
+   * process the skip.
+   *
+   * @param username The username of the user attempting to issue the skip command.
+   * @param channel The channel where the skip command is being executed.
+   */
   fun skipCommand(username: String, channel: String) {
     val canSkip = timeRestrictionService.canUserSkipVideo(username)
     val skipValue = userConfig.skipValue?.toLong() ?: 5
     val currentSkips = skipCounterService.getSkipCounter()
     val timeToNextSkip = timeRestrictionService.timeToNextSkip(username)
-
     if (canSkip) {
       timeRestrictionService.setLastSkip(username)
     }
-
     playlistService.handleSkipCommand(
       username,
       channel,
@@ -145,9 +216,15 @@ class CommandService(
     )
   }
 
-  /** Handles the remove song command */
+  /**
+   * Processes the removal of a recently added song for a given user in a specified channel.
+   * Verifies user limitations such as time restrictions before attempting to remove the song. Sends
+   * appropriate response messages to the channel based on the outcome.
+   *
+   * @param username The username of the person requesting the song removal.
+   * @param channel The name of the channel where the command was issued.
+   */
   fun removeSongCommand(username: String, channel: String) {
-    // Check if user can remove a video (5-minute cooldown)
     if (!timeRestrictionService.canUserRemoveVideo(username)) {
       messageService.sendMessage(
         channel,
@@ -157,20 +234,14 @@ class CommandService(
       )
       return
     }
-
-    // Get the most recent unplayed song for the user
     val song = userSongService.removeRecentUserSong(username)
-
     if (song == null) {
-      // No song to remove or song was added more than 5 minutes ago
       messageService.sendMessage(
         channel,
         "docJAM @$username You don't have any recently added songs to remove (must be within 5 minutes of adding)",
       )
       return
     }
-
-    // Get the song link
     val songLink = song.song?.link
     if (songLink == null) {
       messageService.sendMessage(
@@ -179,17 +250,10 @@ class CommandService(
       )
       return
     }
-
-    // Remove the song from the playlist
     val success = playlistService.removeVideo(songLink)
-
     if (success) {
-      // Reset the user's cooldown to allow adding another song immediately
       timeRestrictionService.resetVideoCooldown(username)
-
-      // Set the last removal timestamp
       timeRestrictionService.setLastRemoval(username)
-
       messageService.sendMessage(
         channel,
         "docJAM @$username Removed your song '${song.title}'. You can add another song now.",
