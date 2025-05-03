@@ -72,10 +72,11 @@ class UserSongFormatterService(
       "[DEBUG] Current playlist paused: ${currentPlaylist.paused}, currentTime: ${currentPlaylist.currentTime}"
     )
 
-    // Start with the time already elapsed in the current video
+    // Initialize total time to 0
     var totalTime = 0
 
-    // If we have a previous playlist state, calculate the elapsed time
+    // Calculate adjusted current time if we have a previous playlist state
+    var adjustedCurrentTime = currentPlaylist.currentTime
     if (lastPlaylist != null && lastUpdateTime > 0 && !currentPlaylist.paused) {
       val elapsedSeconds = ((currentTime - lastUpdateTime) / 1000).toInt()
       println("[DEBUG] Time since last update: $elapsedSeconds seconds")
@@ -86,29 +87,12 @@ class UserSongFormatterService(
           currentPlaylist.queue.isNotEmpty() &&
           lastPlaylist?.queue?.get(0)?.link?.id == currentPlaylist.queue[0].link.id
       ) {
-
         // Calculate the adjusted current time
-        val adjustedCurrentTime = currentPlaylist.currentTime + elapsedSeconds
+        adjustedCurrentTime = currentPlaylist.currentTime + elapsedSeconds
         println(
           "[DEBUG] Adjusted currentTime: $adjustedCurrentTime (original: ${currentPlaylist.currentTime}, elapsed: $elapsedSeconds)"
         )
-
-        // Subtract the adjusted current time from the total
-        totalTime -= adjustedCurrentTime
-        println("[DEBUG] Subtracted adjusted currentTime: $totalTime")
-      } else {
-        // If the playlist has changed, just use the current time from the playlist
-        totalTime -= currentPlaylist.currentTime
-        println(
-          "[DEBUG] Playlist changed, using original currentTime: ${currentPlaylist.currentTime}"
-        )
       }
-    } else if (!currentPlaylist.paused) {
-      // If we don't have a previous state, just use the current time from the playlist
-      totalTime -= currentPlaylist.currentTime
-      println(
-        "[DEBUG] No previous state, using original currentTime: ${currentPlaylist.currentTime}"
-      )
     }
 
     // Store the current playlist and timestamp for the next call
@@ -116,7 +100,7 @@ class UserSongFormatterService(
     lastUpdateTime = currentTime
 
     // Add the duration of all videos in the queue until we find the target video
-    for (item in currentPlaylist.queue) {
+    for ((index, item) in currentPlaylist.queue.withIndex()) {
       println("[DEBUG] Queue item: ${item.title}, duration: ${item.duration}, id: ${item.link.id}")
 
       if (item.link.id == videoId) {
@@ -128,8 +112,16 @@ class UserSongFormatterService(
         println("[DEBUG] Found target video. Total time: $totalTime, formatted: $formattedTime")
         return formattedTime
       }
-      totalTime += item.duration
-      println("[DEBUG] Added duration: $totalTime")
+
+      // For the first video (currently playing), only add the remaining time
+      if (index == 0 && !currentPlaylist.paused) {
+        val remainingTime = Math.max(0, item.duration - adjustedCurrentTime)
+        totalTime += remainingTime
+        println("[DEBUG] Added remaining duration for current video: $remainingTime, total: $totalTime")
+      } else {
+        totalTime += item.duration
+        println("[DEBUG] Added full duration: ${item.duration}, total: $totalTime")
+      }
     }
 
     println("[DEBUG] Video not found in queue")
