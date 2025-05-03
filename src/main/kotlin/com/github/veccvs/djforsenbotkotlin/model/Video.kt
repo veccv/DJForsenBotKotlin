@@ -11,7 +11,7 @@ data class Video(
   @JsonProperty("channel") val channel: String,
   @JsonProperty("views") val views: String,
   @JsonProperty("publish_time") val publishTime: String,
-  @JsonProperty("url_suffix") val urlSuffix: String,
+  @JsonProperty("url_suffix") val urlSuffix: String
 ) {
   @JsonProperty("duration") var duration: Int = 0
 
@@ -24,7 +24,7 @@ data class Video(
     duration: String,
     views: String,
     publishTime: String,
-    urlSuffix: String,
+    urlSuffix: String
   ) : this(id, thumbnails, title, longDesc, channel, views, publishTime, urlSuffix) {
     if (duration == "") {
       this.duration = 0

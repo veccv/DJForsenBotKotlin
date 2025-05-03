@@ -2,207 +2,106 @@ package com.github.veccvs.djforsenbotkotlin.service.command
 
 import com.github.veccvs.djforsenbotkotlin.dao.CytubeDao
 import com.github.veccvs.djforsenbotkotlin.model.Playlist
-import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.service.UserSongService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
-/** Service for formatting user songs for display */
 @Service
 class UserSongFormatterService(
   @Autowired private val userSongService: UserSongService,
   @Autowired private val messageService: MessageService,
   @Autowired private val cytubeDao: CytubeDao,
 ) {
-  // Store the last playlist state and timestamp to calculate elapsed time
   private var lastPlaylist: Playlist? = null
-  private var lastUpdateTime: Long = 0
+  private var lastUpdateTimeMillis: Long = 0
 
-  /**
-   * Formats a list of songs for display
-   *
-   * @param songs The list of songs to format
-   * @return The formatted string
-   */
-  fun formatSongList(songs: List<UserSong>): String {
-    val formattedSongs = songs.take(3).joinToString(", ") { it.title ?: "Unknown" }
-
-    val suffix = if (songs.size > 3) " and ${songs.size - 3} more" else ""
-
-    return formattedSongs + suffix
-  }
-
-  /**
-   * Formats a list of played songs for display
-   *
-   * @param songs The list of played songs to format
-   * @return The formatted string
-   */
-  fun formatPlayedSongs(songs: List<UserSong>): String {
-    val sortedSongs = songs.sortedByDescending { it.playedAt }
-    return formatSongList(sortedSongs)
-  }
-
-  /**
-   * Formats a list of unplayed songs for display
-   *
-   * @param songs The list of unplayed songs to format
-   * @return The formatted string
-   */
-  fun formatUnplayedSongs(songs: List<UserSong>): String {
-    val sortedSongs = songs.sortedBy { it.addedAt }
-    return formatSongList(sortedSongs)
-  }
-
-  /**
-   * Calculates the estimated time until a song is played
-   *
-   * @param songLink The link to the song
-   * @return The estimated time in MM:ss format, or null if the song is not in the queue
-   */
-  fun calculateEstimatedTime(songLink: String): String? {
-    val currentPlaylist = cytubeDao.getPlaylist() ?: return null
-    val videoId = extractVideoId(songLink)
-    val currentTime = Instant.now().toEpochMilli()
-
-    println("[DEBUG] Calculating estimated time for video ID: $videoId")
-    println(
-      "[DEBUG] Current playlist paused: ${currentPlaylist.paused}, currentTime: ${currentPlaylist.currentTime}"
-    )
-
-    // Initialize total time to 0
-    var totalTime = 0
-
-    // Calculate adjusted current time if we have a previous playlist state
-    var adjustedCurrentTime = currentPlaylist.currentTime
-    if (lastPlaylist != null && lastUpdateTime > 0 && !currentPlaylist.paused) {
-      val elapsedSeconds = ((currentTime - lastUpdateTime) / 1000).toInt()
-      println("[DEBUG] Time since last update: $elapsedSeconds seconds")
-
-      // If the playlist hasn't changed (same video is playing), adjust the current time
-      if (
-        lastPlaylist?.queue?.isNotEmpty() == true &&
-          currentPlaylist.queue.isNotEmpty() &&
-          lastPlaylist?.queue?.get(0)?.link?.id == currentPlaylist.queue[0].link.id
-      ) {
-        // Calculate the adjusted current time
-        adjustedCurrentTime = currentPlaylist.currentTime + elapsedSeconds
-        println(
-          "[DEBUG] Adjusted currentTime: $adjustedCurrentTime (original: ${currentPlaylist.currentTime}, elapsed: $elapsedSeconds)"
-        )
-      }
-    }
-
-    // Store the current playlist and timestamp for the next call
-    lastPlaylist = currentPlaylist
-    lastUpdateTime = currentTime
-
-    // Add the duration of all videos in the queue until we find the target video
-    for ((index, item) in currentPlaylist.queue.withIndex()) {
-      println("[DEBUG] Queue item: ${item.title}, duration: ${item.duration}, id: ${item.link.id}")
-
-      if (item.link.id == videoId) {
-        // If the total time is negative, it means the video will play very soon
-        val seconds = Math.max(0, totalTime)
-        val minutes = seconds / 60
-        val remainingSeconds = seconds % 60
-        val formattedTime = String.format("%02d:%02d", minutes, remainingSeconds)
-        println("[DEBUG] Found target video. Total time: $totalTime, formatted: $formattedTime")
-        return formattedTime
-      }
-
-      // For the first video (currently playing), only add the remaining time
-      if (index == 0 && !currentPlaylist.paused) {
-        val remainingTime = Math.max(0, item.duration - adjustedCurrentTime)
-        totalTime += remainingTime
-        println("[DEBUG] Added remaining duration for current video: $remainingTime, total: $totalTime")
-      } else {
-        totalTime += item.duration
-        println("[DEBUG] Added full duration: ${item.duration}, total: $totalTime")
-      }
-    }
-
-    println("[DEBUG] Video not found in queue")
-    return null // Song not found in queue
-  }
-
-  /**
-   * Extracts the video ID from a YouTube link
-   *
-   * @param link The YouTube link
-   * @return The video ID
-   */
-  private fun extractVideoId(link: String): String {
-    // Handle youtu.be links
-    if (link.contains("youtu.be")) {
-      return link.substringAfterLast("/")
-    }
-
-    // Handle youtube.com links
-    if (link.contains("youtube.com")) {
-      return link.substringAfter("v=").substringBefore("&")
-    }
-
-    // If it's already just an ID, return it
-    return link
-  }
-
-  /**
-   * Displays the unplayed songs added by a user with estimated time until they are played
-   *
-   * @param username The username of the user
-   * @param channel The channel to send the message to
-   */
-  @Transactional
   fun getUserSongs(username: String, channel: String) {
-    val unplayedSongs = userSongService.getUnplayedUserSongs(username)
-
-    if (unplayedSongs.isEmpty()) {
+    val unplayed = userSongService.getUnplayedUserSongs(username)
+    if (unplayed.isEmpty()) {
       messageService.sendMessage(channel, "@$username docJAM You don't have any unplayed songs")
       return
     }
-
-    val message = StringBuilder("@$username docJAM Your unplayed songs: ")
-
-    // Sort by addedAt timestamp in ascending order
-    val sortedSongs = unplayedSongs.sortedBy { it.addedAt }
-
-    // Format songs with estimated time
-    val formattedSongs =
-      sortedSongs.take(3).mapNotNull { userSong ->
-        // Safely handle null song or link
-        val song = userSong.song
-        if (song == null) return@mapNotNull null
-
-        val songLink = song.link
-        if (songLink == null) return@mapNotNull null
-
+    val songs = unplayed.sortedBy { it.addedAt }
+    val formatted =
+      songs.take(3).mapNotNull { userSong ->
+        val songLink = userSong.song?.link ?: return@mapNotNull null
         val title = userSong.title ?: "Unknown"
-        val estimatedTime = calculateEstimatedTime(songLink)
-
-        if (estimatedTime != null) {
-          "$title (${estimatedTime})"
-        } else {
-          "$title (not in queue)"
-        }
+        val eta = estimateSongTime(songLink)
+        formatSongTitleWithEta(title, eta)
       }
-
-    // Join the formatted songs
-    message.append(formattedSongs.joinToString(", "))
-
-    // Add suffix if there are more songs
-    if (sortedSongs.size > 3) {
-      message.append(" and ${sortedSongs.size - 3} more")
-    }
-
-    // Ensure message length is limited to 150 characters
-    var finalMessage = message.toString()
-    if (finalMessage.length > 150) {
-      finalMessage = finalMessage.substring(0, 147) + "..."
-    }
-
-    messageService.sendMessage(channel, finalMessage)
+    val message =
+      buildString {
+          append("@$username docJAM ")
+          append(formatted.joinToString(", "))
+          if (songs.size > 3) append(" and ${songs.size - 3} more")
+        }
+        .truncateTo(150)
+    messageService.sendMessage(channel, message)
   }
+
+  fun estimateSongTime(songLink: String): String? {
+    val playlist = cytubeDao.getPlaylist() ?: return null
+    val videoId = extractVideoId(songLink)
+    val now = Instant.now().toEpochMilli()
+    val adjustedCurrentTime = computeAdjustedCurrentTime(playlist, now)
+    var accumulatedTime = 0f
+
+    playlist.queue.forEachIndexed { idx, item ->
+      val timeForThisItem =
+        if (idx == 0 && !playlist.paused) {
+          (item.duration - adjustedCurrentTime).coerceAtLeast(0f)
+        } else {
+          item.duration.toFloat()
+        }
+      if (item.link.id == videoId) {
+        updateLastPlaylistAndTime(playlist, now)
+        return formatSecondsToTime(
+          if (idx == 0 && !playlist.paused) item.duration - adjustedCurrentTime else accumulatedTime
+        )
+      }
+      accumulatedTime += timeForThisItem
+    }
+    updateLastPlaylistAndTime(playlist, now)
+    return null
+  }
+
+  private fun computeAdjustedCurrentTime(playlist: Playlist, now: Long): Float {
+    if (
+      lastPlaylist != null &&
+        lastUpdateTimeMillis > 0 &&
+        !playlist.paused &&
+        lastPlaylist!!.queue.isNotEmpty() &&
+        playlist.queue.isNotEmpty() &&
+        lastPlaylist!!.queue[0].link.id == playlist.queue[0].link.id
+    ) {
+      val elapsedSec = ((now - lastUpdateTimeMillis) / 1000).toInt()
+      return (playlist.currentTime + elapsedSec).coerceAtMost(playlist.queue[0].duration.toFloat())
+    }
+    return playlist.currentTime
+  }
+
+  private fun formatSongTitleWithEta(title: String, eta: String?) =
+    if (eta != null) "$title (in ~$eta)" else "$title (not in queue)"
+
+  private fun formatSecondsToTime(seconds: Float): String {
+    val mins = (seconds / 60).toInt()
+    val secs = (seconds % 60).toInt()
+    return "%02d:%02d".format(mins, secs)
+  }
+
+  private fun updateLastPlaylistAndTime(playlist: Playlist, now: Long) {
+    lastPlaylist = playlist
+    lastUpdateTimeMillis = now
+  }
+
+  private fun extractVideoId(link: String) =
+    when {
+      "youtu.be" in link -> link.substringAfterLast("/")
+      "youtube.com" in link -> link.substringAfter("v=").substringBefore("&")
+      else -> link
+    }
+
+  private fun String.truncateTo(maxLength: Int) =
+    if (length > maxLength) substring(0, maxLength - 3) + "..." else this
 }

@@ -6,5 +6,5 @@ data class PlaylistItem(
   val username: String,
   val link: MediaLink,
   val title: String,
-  val duration: Int,
+  val duration: Int
 )

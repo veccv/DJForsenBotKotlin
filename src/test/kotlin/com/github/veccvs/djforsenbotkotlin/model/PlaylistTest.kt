@@ -17,7 +17,7 @@ class PlaylistTest {
             time = 100,
             locked = true,
             paused = false,
-            currentTime = 50,
+            currentTime = 50f,
             _current = playlistItem,
             queue = queue
         )
@@ -26,7 +26,7 @@ class PlaylistTest {
         assertEquals(100, playlist.time)
         assertTrue(playlist.locked)
         assertFalse(playlist.paused)
-        assertEquals(50, playlist.currentTime)
+        assertEquals(50f, playlist.currentTime)
         assertEquals(queue, playlist.queue)
     }
 
@@ -38,8 +38,8 @@ class PlaylistTest {
         val queue1 = mutableListOf(playlistItem)
         val queue2 = mutableListOf(playlistItem)
 
-        val playlist1 = Playlist(100, true, false, 50, playlistItem, queue1)
-        val playlist2 = Playlist(100, true, false, 50, playlistItem, queue2)
+        val playlist1 = Playlist(100, true, false, 50f, playlistItem, queue1)
+        val playlist2 = Playlist(100, true, false, 50f, playlistItem, queue2)
 
         // Act & Assert
         assertEquals(playlist1, playlist2)
@@ -55,13 +55,13 @@ class PlaylistTest {
         val queue1 = mutableListOf(playlistItem1)
         val queue2 = mutableListOf(playlistItem2)
 
-        val playlist1 = Playlist(100, true, false, 50, playlistItem1, queue1)
-        val playlist2 = Playlist(200, true, false, 50, playlistItem1, queue1) // Different time
-        val playlist3 = Playlist(100, false, false, 50, playlistItem1, queue1) // Different locked
-        val playlist4 = Playlist(100, true, true, 50, playlistItem1, queue1) // Different paused
-        val playlist5 = Playlist(100, true, false, 60, playlistItem1, queue1) // Different currentTime
-        val playlist6 = Playlist(100, true, false, 50, playlistItem2, queue1) // Different _current
-        val playlist7 = Playlist(100, true, false, 50, playlistItem1, queue2) // Different queue
+        val playlist1 = Playlist(100, true, false, 50f, playlistItem1, queue1)
+        val playlist2 = Playlist(200, true, false, 50f, playlistItem1, queue1) // Different time
+        val playlist3 = Playlist(100, false, false, 50f, playlistItem1, queue1) // Different locked
+        val playlist4 = Playlist(100, true, true, 50f, playlistItem1, queue1) // Different paused
+        val playlist5 = Playlist(100, true, false, 60f, playlistItem1, queue1) // Different currentTime
+        val playlist6 = Playlist(100, true, false, 50f, playlistItem2, queue1) // Different _current
+        val playlist7 = Playlist(100, true, false, 50f, playlistItem1, queue2) // Different queue
 
         // Act & Assert
         assertNotEquals(playlist1, playlist2)
@@ -81,20 +81,20 @@ class PlaylistTest {
         val queue1 = mutableListOf(playlistItem1)
         val queue2 = mutableListOf(playlistItem2)
 
-        val playlist = Playlist(100, true, false, 50, playlistItem1, queue1)
+        val playlist = Playlist(100, true, false, 50f, playlistItem1, queue1)
 
         // Act
         val copiedWithNewTime = playlist.copy(time = 200)
         val copiedWithNewLocked = playlist.copy(locked = false)
         val copiedWithNewPaused = playlist.copy(paused = true)
-        val copiedWithNewCurrentTime = playlist.copy(currentTime = 60)
+        val copiedWithNewCurrentTime = playlist.copy(currentTime = 60f)
         val copiedWithNewQueue = playlist.copy(queue = queue2)
 
         // Assert
         assertEquals(200, copiedWithNewTime.time)
         assertFalse(copiedWithNewLocked.locked)
         assertTrue(copiedWithNewPaused.paused)
-        assertEquals(60, copiedWithNewCurrentTime.currentTime)
+        assertEquals(60f, copiedWithNewCurrentTime.currentTime)
         assertEquals(queue2, copiedWithNewQueue.queue)
     }
 
@@ -105,7 +105,7 @@ class PlaylistTest {
         val playlistItem = PlaylistItem(1, false, "testuser", mediaLink, "Test Video", 180)
         val queue = mutableListOf(playlistItem)
 
-        val playlist = Playlist(100, true, false, 50, playlistItem, queue)
+        val playlist = Playlist(100, true, false, 50f, playlistItem, queue)
 
         // Act
         val result = playlist.toString()
@@ -124,7 +124,7 @@ class PlaylistTest {
         val playlistItem = PlaylistItem(1, false, "testuser", mediaLink, "Test Video", 180)
         val queue = mutableListOf(playlistItem)
 
-        val playlist = Playlist(100, true, false, 50, playlistItem, queue)
+        val playlist = Playlist(100, true, false, 50f, playlistItem, queue)
 
         // Act - We can only access public components
         val time = playlist.component1()
@@ -138,7 +138,7 @@ class PlaylistTest {
         assertEquals(100, time)
         assertTrue(locked)
         assertFalse(paused)
-        assertEquals(50, currentTime)
+        assertEquals(50f, currentTime)
         assertEquals(queue, queueResult)
     }
 
@@ -150,7 +150,7 @@ class PlaylistTest {
         val playlistItem2 = PlaylistItem(2, false, "testuser", mediaLink, "Another Video", 240)
         val queue = mutableListOf(playlistItem1)
 
-        val playlist = Playlist(100, true, false, 50, playlistItem1, queue)
+        val playlist = Playlist(100, true, false, 50f, playlistItem1, queue)
 
         // Act
         playlist.queue.add(playlistItem2)
