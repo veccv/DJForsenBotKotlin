@@ -108,11 +108,11 @@ class CommandService(
     when (twitchCommand?.command) {
       ";link",
       ";where" -> {
+        twitchConnector.sendWhisper(username, CYTUBE_LINK)
         messageService.sendMessage(
           channel,
           "docJAM @${username} I sent you a whisper with the link forsenCD ",
         )
-        twitchConnector.sendWhisper(username, CYTUBE_LINK)
       }
 
       ";search",
