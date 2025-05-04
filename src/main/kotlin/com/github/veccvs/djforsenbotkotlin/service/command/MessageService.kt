@@ -5,13 +5,9 @@ import com.github.veccvs.djforsenbotkotlin.utils.BanPhraseChecker
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 
-/**
- * Service for handling message sending to Twitch chat
- */
+/** Service for handling the message sending to Twitch chat */
 @Service
-class MessageService(
-  @Autowired private val twitchChatBot: TwitchChatBot
-) {
+class MessageService(@Autowired private val twitchChatBot: TwitchChatBot) {
   /**
    * Sends a message to the specified channel, checking for banned phrases
    *

@@ -201,19 +201,12 @@ class CommandService(
   fun skipCommand(username: String, channel: String) {
     val canSkip = timeRestrictionService.canUserSkipVideo(username)
     val skipValue = userConfig.skipValue?.toLong() ?: 5
-    val currentSkips = skipCounterService.getSkipCounter()
+    skipCounterService.getSkipCounter()
     val timeToNextSkip = timeRestrictionService.timeToNextSkip(username)
     if (canSkip) {
       timeRestrictionService.setLastSkip(username)
     }
-    playlistService.handleSkipCommand(
-      username,
-      channel,
-      canSkip,
-      skipValue,
-      currentSkips,
-      timeToNextSkip,
-    )
+    playlistService.handleSkipCommand(username, channel, canSkip, skipValue, timeToNextSkip)
   }
 
   /**

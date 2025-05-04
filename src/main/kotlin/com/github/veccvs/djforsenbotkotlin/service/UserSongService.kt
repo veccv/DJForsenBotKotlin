@@ -90,40 +90,18 @@ constructor(
    * @return The video ID
    */
   private fun extractVideoId(link: String): String {
-    // Handle youtu.be links
+    // Handle YouTube links
     if (link.contains("youtu.be")) {
       return link.substringAfterLast("/")
     }
 
-    // Handle youtube.com links
+    // Handle YouTube.com links
     if (link.contains("youtube.com")) {
       return link.substringAfter("v=").substringBefore("&")
     }
 
     // If it's already just an ID, return it
     return link
-  }
-
-  /**
-   * Gets all songs added by a user
-   *
-   * @param username The username of the user
-   * @return A list of UserSongs
-   */
-  fun getUserSongs(username: String): List<UserSong> {
-    val user = userRepository.findByUsername(username) ?: return emptyList()
-    return userSongRepository.findByUser(user)
-  }
-
-  /**
-   * Gets all played songs added by a user
-   *
-   * @param username The username of the user
-   * @return A list of UserSongs
-   */
-  fun getPlayedUserSongs(username: String): List<UserSong> {
-    val user = userRepository.findByUsername(username) ?: return emptyList()
-    return userSongRepository.findByUser(user).filter { it.played }
   }
 
   /**
@@ -152,7 +130,7 @@ constructor(
 
   /**
    * Removes the most recently added unplayed song for a user
-   * 
+   *
    * @param username The username of the user
    * @return The removed song, or null if no song was removed
    */
@@ -178,8 +156,8 @@ constructor(
   }
 
   /**
-   * Checks if songs exist in the playlist when the application starts
-   * If a song is not in the playlist, mark it as played
+   * Checks if songs exist in the playlist when the application starts. If a song is not in the
+   * playlist, mark it as played
    */
   @PostConstruct
   @Transactional

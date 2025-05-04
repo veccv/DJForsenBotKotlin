@@ -3,23 +3,22 @@ package com.github.veccvs.djforsenbotkotlin.service.command
 import com.github.veccvs.djforsenbotkotlin.config.UserConfig
 import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Service
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.stereotype.Service
 
-/**
- * Service for handling user time restrictions
- */
+/** Service for handling user time restrictions */
 @Service
 class TimeRestrictionService(
   @Autowired private val userRepository: UserRepository,
-  @Autowired private val userConfig: UserConfig
+  @Autowired private val userConfig: UserConfig,
 ) {
   enum class TimeUnit {
-    MINUTES, SECONDS
+    MINUTES,
+    SECONDS,
   }
 
   /**
@@ -35,13 +34,14 @@ class TimeRestrictionService(
     username: String,
     lastActionTime: (User) -> LocalDateTime,
     intervalValue: Long,
-    timeUnit: TimeUnit
+    timeUnit: TimeUnit,
   ): Boolean {
     val user = userRepository.findByUsername(username) ?: return false
-    val nextActionTime = when (timeUnit) {
-      TimeUnit.MINUTES -> lastActionTime(user).plusMinutes(intervalValue)
-      TimeUnit.SECONDS -> lastActionTime(user).plusSeconds(intervalValue)
-    }
+    val nextActionTime =
+      when (timeUnit) {
+        TimeUnit.MINUTES -> lastActionTime(user).plusMinutes(intervalValue)
+        TimeUnit.SECONDS -> lastActionTime(user).plusSeconds(intervalValue)
+      }
     return nextActionTime == null ||
       nextActionTime.isBefore(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
   }
@@ -57,7 +57,7 @@ class TimeRestrictionService(
       username,
       { it.lastAddedVideo },
       userConfig.minutesToAddVideo?.toLong() ?: 0,
-      TimeUnit.MINUTES
+      TimeUnit.MINUTES,
     )
   }
 
@@ -83,7 +83,7 @@ class TimeRestrictionService(
       username,
       { it.lastResponse },
       userConfig.secondsToResponseToCommand?.toLong() ?: 0,
-      TimeUnit.SECONDS
+      TimeUnit.SECONDS,
     )
   }
 
@@ -111,7 +111,7 @@ class TimeRestrictionService(
       username,
       { it.lastSkip },
       userConfig.minutesToSkipVideo?.toLong() ?: 0,
-      TimeUnit.MINUTES
+      TimeUnit.MINUTES,
     )
   }
 
@@ -140,8 +140,8 @@ class TimeRestrictionService(
   }
 
   /**
-   * Resets the user's video cooldown by setting lastAddedVideo to a day ago
-   * This allows the user to add a new video immediately
+   * Resets the user's video cooldown by setting lastAddedVideo to a day ago This allows the user to
+   * add a new video immediately
    *
    * @param username The username of the user
    */
@@ -163,8 +163,8 @@ class TimeRestrictionService(
     return canPerformTimeRestrictedAction(
       username,
       { it.lastRemovedVideo },
-      5, // 5 minutes cooldown for removing videos
-      TimeUnit.MINUTES
+      5, // 5-minute cooldown for removing videos
+      TimeUnit.MINUTES,
     )
   }
 
@@ -176,7 +176,7 @@ class TimeRestrictionService(
    */
   fun timeToNextRemoval(username: String): String {
     val user = userRepository.findByUsername(username) ?: return "0"
-    return timeToNextAction(user.lastRemovedVideo, 5) // 5 minutes cooldown
+    return timeToNextAction(user.lastRemovedVideo, 5) // 5-minute cooldown
   }
 
   /**

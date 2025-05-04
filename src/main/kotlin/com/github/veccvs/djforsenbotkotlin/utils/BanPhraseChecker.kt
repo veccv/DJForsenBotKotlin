@@ -18,13 +18,14 @@ object BanPhraseChecker {
   fun chatCheck(text: String): Int {
     val response = postRequest(text)
     return if (response.getBoolean("banned"))
-      response.getJSONObject("banphrase_data").getInt("length")
+      response.getJSONObject("ban-phrase_data").getInt("length")
     else 0
   }
 
   internal fun postRequest(text: String): JSONObject {
     val uri = URI(URL_ENDPOINT)
-    val connection = httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
+    val connection =
+      httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
     connection.setRequestProperty("Content-Type", "application/json; utf-8")
     connection.doOutput = true
