@@ -32,6 +32,7 @@ class CommandService(
   @Autowired private val userConfig: UserConfig,
   @Autowired private val skipCounterService: SkipCounterService,
   @Autowired private val userSongService: UserSongService,
+  @Autowired private val spotifyService: SpotifyService,
 ) {
   /**
    * Companion object for the CommandService class. Acts as a container for shared constants and
@@ -109,7 +110,7 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;authorize, ;add spotify, ;track spotify, ;current"
     val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
     when (twitchCommand?.command) {
       ";link",
@@ -152,6 +153,37 @@ class CommandService(
 
       ";undo" -> {
         removeSongCommand(username, channel)
+      }
+
+      ";connect" -> {
+        connectSpotifyCommand(twitchCommand, username, channel)
+      }
+
+      ";authorize" -> {
+        authorizeSpotifyCommand(twitchCommand, username, channel)
+      }
+
+      ";track" -> {
+        if (twitchCommand.params.isNotEmpty() && twitchCommand.params[0] == "spotify") {
+          trackAndAddSpotifyCommand(username, channel)
+        } else {
+          messageService.sendMessage(channel, unknownCommandMessage)
+        }
+      }
+
+      ";add" -> {
+        if (twitchCommand.params.isNotEmpty()) {
+          when (twitchCommand.params[0]) {
+            "spotify" -> addSpotifyCommand(username, channel)
+            else -> messageService.sendMessage(channel, unknownCommandMessage)
+          }
+        } else {
+          messageService.sendMessage(channel, unknownCommandMessage)
+        }
+      }
+
+      ";current" -> {
+        addCurrentSpotifyCommand(username, channel)
       }
 
       else -> {
@@ -263,5 +295,400 @@ class CommandService(
         "docJAM @$username Error removing song from playlist. Please try again.",
       )
     }
+  }
+
+  /**
+   * Handles the connect command for Spotify integration Generates an authorization URL for the user
+   * to grant permissions to the application
+   *
+   * @param twitchCommand The command (not used)
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun connectSpotifyCommand(
+    twitchCommand: TwitchCommand?,
+    username: String,
+    channel: String,
+  ) {
+    try {
+      // Generate the authorization URL
+      val authUrl = spotifyService.getAuthorizationUrl()
+
+      // Send the authorization URL to the user via whisper
+      twitchConnector.sendWhisper(
+        username,
+        "To connect your Spotify account, please visit this URL and authorize the application: $authUrl",
+      )
+
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username I've sent you a whisper with instructions to connect your Spotify account. After authorizing, you'll need to provide the code using ;authorize <code>",
+      )
+    } catch (e: Exception) {
+      println("[COMMAND SERVICE] Error generating Spotify authorization URL: ${e.message}")
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Error connecting to Spotify. Please try again later.",
+      )
+    }
+  }
+
+  /**
+   * Handles the authorize command for Spotify integration Exchanges the authorization code for
+   * access and refresh tokens
+   *
+   * @param twitchCommand The command containing the authorization code
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun authorizeSpotifyCommand(
+    twitchCommand: TwitchCommand?,
+    username: String,
+    channel: String,
+  ) {
+    if (twitchCommand?.params?.isEmpty() == true) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Please provide the authorization code. Usage: ;authorize <code>",
+      )
+      return
+    }
+
+    val authCode = twitchCommand?.params?.get(0)
+    val user = userRepository.findByUsername(username)
+
+    if (user != null && !authCode.isNullOrBlank()) {
+      try {
+        // Exchange the authorization code for tokens
+        val tokenResponse = spotifyService.exchangeCodeForToken(authCode)
+
+        // Store the tokens in the user record
+        user.spotifyAccessToken = tokenResponse["access_token"] as String
+        user.spotifyRefreshToken = tokenResponse["refresh_token"] as String
+        val expiresIn = tokenResponse["expires_in"] as Long
+        user.spotifyTokenExpiration = java.time.LocalDateTime.now().plusSeconds(expiresIn - 60)
+
+        userRepository.save(user)
+
+        messageService.sendMessage(
+          channel,
+          "docJAM @$username Your Spotify account has been connected successfully. You can now use ;add spotify to add your currently playing song.",
+        )
+      } catch (e: Exception) {
+        println("[COMMAND SERVICE] Error exchanging Spotify authorization code: ${e.message}")
+        messageService.sendMessage(
+          channel,
+          "docJAM @$username Error connecting your Spotify account. The authorization code may be invalid or expired. Please try again with ;connect",
+        )
+      }
+    } else {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Error connecting your Spotify account. Please try again.",
+      )
+    }
+  }
+
+  /**
+   * Handles the add spotify command to add the currently playing Spotify song
+   *
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun addSpotifyCommand(username: String, channel: String) {
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+
+    val user = userRepository.findByUsername(username)
+
+    if (user?.spotifyAccessToken == null || user.spotifyRefreshToken == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You need to connect your Spotify account first. Use ;connect to get started.",
+      )
+      return
+    }
+
+    val currentSong =
+      spotifyService.getCurrentlyPlayingSong(user.spotifyAccessToken!!, user.spotifyRefreshToken!!)
+
+    if (currentSong == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username No song is currently playing on your Spotify account or there was an error getting the song information.",
+      )
+      return
+    }
+
+    // Check if we got an error response with a new token
+    if (currentSong.containsKey("error") && currentSong["error"] == "token_expired") {
+      // Update the user's access token
+      user.spotifyAccessToken = currentSong["new_token"]
+      userRepository.save(user)
+
+      // Try again with the new token
+      return addSpotifyCommand(username, channel)
+    }
+
+    // Search for the song on YouTube
+    val searchCommand = TwitchCommand("", listOf(currentSong["title"] ?: ""))
+    videoSearchService.searchVideo(searchCommand, channel, username)
+  }
+
+  /**
+   * Tracks the user's currently playing Spotify songs and adds them to the playlist if they've been
+   * playing for at least 2 minutes. Will track up to 5 songs.
+   *
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun trackAndAddSpotifyCommand(username: String, channel: String) {
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+
+    val user = userRepository.findByUsername(username)
+
+    if (user?.spotifyAccessToken == null || user.spotifyRefreshToken == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You need to connect your Spotify account first. Use ;connect to get started.",
+      )
+      return
+    }
+
+    messageService.sendMessage(
+      channel,
+      "docJAM @$username Now tracking your Spotify. Songs that play for at least 2 minutes will be added (up to 5 songs). Tracking will stop after 10 minutes if no new songs are detected.",
+    )
+
+    // Start tracking in a background thread
+    Thread {
+        try {
+          val addedSongs =
+            mutableSetOf<String>() // Keep track of added song IDs to avoid duplicates
+          var lastSongTitle: String? = null
+          var lastSongUrl: String? = null
+          var songsAdded = 0
+          var lastNewSongTime =
+            System.currentTimeMillis() // Track when the last new song was detected
+
+          // Track until 5 songs have been added or no new song for 10 minutes
+          while (songsAdded < 5) {
+            // Check if it's been more than 10 minutes since the last new song
+            if (
+              System.currentTimeMillis() - lastNewSongTime > 600000
+            ) { // 10 minutes in milliseconds
+              messageService.sendMessage(
+                channel,
+                "docJAM @$username Stopped tracking after 10 minutes with no new songs. Added $songsAdded songs to the playlist.",
+              )
+              return@Thread
+            }
+
+            // Get the currently playing song
+            val currentSong =
+              spotifyService.getCurrentlyPlayingSong(
+                user.spotifyAccessToken!!,
+                user.spotifyRefreshToken!!,
+              )
+
+            // Check if we got an error response with a new token
+            if (
+              currentSong != null &&
+                currentSong.containsKey("error") &&
+                currentSong["error"] == "token_expired"
+            ) {
+              // Update the user's access token
+              user.spotifyAccessToken = currentSong["new_token"]
+              userRepository.save(user)
+              continue // Try again with the new token
+            }
+
+            if (currentSong != null) {
+              val currentTitle = currentSong["title"]
+              val currentUrl = currentSong["url"]
+
+              // If this is a new song, start tracking it
+              if (currentTitle != lastSongTitle) {
+                println("[SPOTIFY TRACKER] New song detected: $currentTitle")
+                lastSongTitle = currentTitle
+                lastSongUrl = currentUrl
+                lastNewSongTime = System.currentTimeMillis() // Update the last new song time
+
+                // Wait for 2 minutes
+                Thread.sleep(120000)
+
+                // Check if the same song is still playing
+                val checkSong =
+                  spotifyService.getCurrentlyPlayingSong(
+                    user.spotifyAccessToken!!,
+                    user.spotifyRefreshToken!!,
+                  )
+
+                // Check if we got an error response with a new token
+                if (
+                  checkSong != null &&
+                    checkSong.containsKey("error") &&
+                    checkSong["error"] == "token_expired"
+                ) {
+                  // Update the user's access token
+                  user.spotifyAccessToken = checkSong["new_token"]
+                  userRepository.save(user)
+                  continue // Try again with the new token
+                }
+
+                if (checkSong != null && checkSong["title"] == lastSongTitle) {
+                  // The song has been playing for at least 2 minutes
+                  // Check if we've already added this song
+                  if (lastSongUrl != null && !addedSongs.contains(lastSongUrl)) {
+                    // Add the song to the playlist
+                    val searchCommand = TwitchCommand("", listOf(lastSongTitle ?: ""))
+                    if (videoSearchService.searchVideo(searchCommand, channel, username)) {
+                      addedSongs.add(lastSongUrl)
+                      songsAdded++
+                      messageService.sendMessage(
+                        channel,
+                        "docJAM @$username Added song $songsAdded/5: $lastSongTitle",
+                      )
+                    }
+                  }
+                }
+              }
+            }
+
+            // Wait a bit before checking again
+            Thread.sleep(10000) // Check every 10 seconds
+          }
+
+          messageService.sendMessage(
+            channel,
+            "docJAM @$username Finished tracking. Added 5 songs to the playlist.",
+          )
+        } catch (e: Exception) {
+          println("[SPOTIFY TRACKER] Error tracking songs: ${e.message}")
+          messageService.sendMessage(
+            channel,
+            "docJAM @$username Error tracking your Spotify songs. Please try again.",
+          )
+        }
+      }
+      .start()
+  }
+
+  /**
+   * Adds the currently playing Spotify song to the playlist if it has been playing for at least 2
+   * minutes. Only adds one song, unlike trackAndAddSpotifyCommand which adds up to 5 songs.
+   *
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun addCurrentSpotifyCommand(username: String, channel: String) {
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+
+    val user = userRepository.findByUsername(username)
+
+    if (user?.spotifyAccessToken == null || user.spotifyRefreshToken == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You need to connect your Spotify account first. Use ;connect to get started.",
+      )
+      return
+    }
+
+    val currentSong =
+      spotifyService.getCurrentlyPlayingSong(user.spotifyAccessToken!!, user.spotifyRefreshToken!!)
+
+    // Check if we got an error response with a new token
+    if (
+      currentSong != null &&
+        currentSong.containsKey("error") &&
+        currentSong["error"] == "token_expired"
+    ) {
+      // Update the user's access token
+      user.spotifyAccessToken = currentSong["new_token"]
+      userRepository.save(user)
+
+      // Try again with the new token
+      return addCurrentSpotifyCommand(username, channel)
+    }
+
+    if (currentSong == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username No song is currently playing on your Spotify account or there was an error getting the song information.",
+      )
+      return
+    }
+
+    val songTitle = currentSong["title"]
+
+    // Start tracking in a background thread
+    Thread {
+        try {
+          // Wait for 2 minutes
+          Thread.sleep(120000)
+
+          // Check if the same song is still playing
+          val checkSong =
+            spotifyService.getCurrentlyPlayingSong(
+              user.spotifyAccessToken!!,
+              user.spotifyRefreshToken!!,
+            )
+
+          // Check if we got an error response with a new token
+          if (
+            checkSong != null &&
+              checkSong.containsKey("error") &&
+              checkSong["error"] == "token_expired"
+          ) {
+            // Update the user's access token in the main thread
+            synchronized(user) {
+              user.spotifyAccessToken = checkSong["new_token"]
+              userRepository.save(user)
+            }
+
+            // Try again with the new token
+            val retryCheckSong =
+              spotifyService.getCurrentlyPlayingSong(
+                user.spotifyAccessToken!!,
+                user.spotifyRefreshToken!!,
+              )
+
+            if (retryCheckSong != null && retryCheckSong["title"] == songTitle) {
+              // The song has been playing for at least 2 minutes
+              // Add the song to the playlist
+              val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
+              if (videoSearchService.searchVideo(searchCommand, channel, username)) {
+                messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
+              }
+            } else {
+              messageService.sendMessage(
+                channel,
+                "docJAM @$username The song \"$songTitle\" is no longer playing. You need to listen to the same song for at least 2 minutes.",
+              )
+            }
+            return@Thread
+          }
+
+          if (checkSong != null && checkSong["title"] == songTitle) {
+            // The song has been playing for at least 2 minutes
+            // Add the song to the playlist
+            val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
+            if (videoSearchService.searchVideo(searchCommand, channel, username)) {
+              messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
+            }
+          } else {
+            messageService.sendMessage(
+              channel,
+              "docJAM @$username The song \"$songTitle\" is no longer playing. You need to listen to the same song for at least 2 minutes.",
+            )
+          }
+        } catch (e: Exception) {
+          println("[SPOTIFY CURRENT] Error adding current song: ${e.message}")
+          messageService.sendMessage(
+            channel,
+            "docJAM @$username Error adding your current Spotify song. Please try again.",
+          )
+        }
+      }
+      .start()
   }
 }
