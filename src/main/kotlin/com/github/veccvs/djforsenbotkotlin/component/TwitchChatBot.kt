@@ -159,6 +159,6 @@ constructor(
   companion object {
     private val logger = LoggerFactory.getLogger(TwitchChatBot::class.java)
     private const val BOT_NAME = "djfors_"
-    private const val BOT_OAUTH_TOKEN = "oauth:your-oauth-token-here"
+    private const val BOT_OAUTH_TOKEN = "oauth:ln9r4pdy3vjha3c83dn0b2cbyem87r"
   }
 }

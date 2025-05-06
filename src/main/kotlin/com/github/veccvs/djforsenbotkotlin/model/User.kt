@@ -1,12 +1,12 @@
 package com.github.veccvs.djforsenbotkotlin.model
 
 import jakarta.persistence.*
-import java.time.LocalDateTime
-import java.util.*
 import lombok.AllArgsConstructor
 import lombok.Getter
 import lombok.NoArgsConstructor
 import lombok.Setter
+import java.time.LocalDateTime
+import java.util.*
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -30,4 +30,13 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   var lastSkip: LocalDateTime = LocalDateTime.now().minusDays(1)
   @Column(name = "last_removed_video", nullable = false)
   var lastRemovedVideo: LocalDateTime = LocalDateTime.now().minusDays(1)
+
+  // Spotify integration fields
+  @Column(name = "spotify_user_id", nullable = true) var spotifyUserId: String? = null
+  @Column(name = "spotify_access_token", nullable = true, length = 500)
+  var spotifyAccessToken: String? = null
+  @Column(name = "spotify_refresh_token", nullable = true, length = 500)
+  var spotifyRefreshToken: String? = null
+  @Column(name = "spotify_token_expiration", nullable = true)
+  var spotifyTokenExpiration: LocalDateTime? = null
 }
