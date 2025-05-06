@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="20241003-01" author="system">
+        <addColumn tableName="user">
+            <column name="spotify_access_token" type="varchar(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="spotify_refresh_token" type="varchar(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="spotify_token_expiration" type="timestamp">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>
