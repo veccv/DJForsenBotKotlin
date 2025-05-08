@@ -71,15 +71,21 @@ class CommandService(
    * @param channel The Twitch channel where the message was sent.
    */
   fun commandHandler(username: String, message: String, channel: String) {
-    println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
+    // Only log messages that are bot commands
+    if (message.startsWith("!djfors_") || message.startsWith(";")) {
+      println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
+    }
+
     if (message.startsWith("!djfors_")) {
       println("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
+
     val command = commandParserService.detectCommand(message)
-    println("[COMMAND HANDLER] Detected command: $command")
+
     if (command != null) {
+      println("[COMMAND HANDLER] Detected command: $command")
       userRepository.findByUsername(username) ?: userRepository.save(User(username))
       if (!timeRestrictionService.canResponseToCommand(username)) return
       timeRestrictionService.setLastResponse(username)
@@ -201,19 +207,12 @@ class CommandService(
   fun skipCommand(username: String, channel: String) {
     val canSkip = timeRestrictionService.canUserSkipVideo(username)
     val skipValue = userConfig.skipValue?.toLong() ?: 5
-    val currentSkips = skipCounterService.getSkipCounter()
+    skipCounterService.getSkipCounter()
     val timeToNextSkip = timeRestrictionService.timeToNextSkip(username)
     if (canSkip) {
       timeRestrictionService.setLastSkip(username)
     }
-    playlistService.handleSkipCommand(
-      username,
-      channel,
-      canSkip,
-      skipValue,
-      currentSkips,
-      timeToNextSkip,
-    )
+    playlistService.handleSkipCommand(username, channel, canSkip, skipValue, timeToNextSkip)
   }
 
   /**

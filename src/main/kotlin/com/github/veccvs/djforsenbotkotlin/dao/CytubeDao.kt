@@ -13,7 +13,7 @@ import org.springframework.web.client.getForEntity
 @Component
 class CytubeDao
 @Autowired
-constructor(private val restTemplate: RestTemplate, private val userConfig: UserConfig) {
+constructor(private val restTemplate: RestTemplate, userConfig: UserConfig) {
 
   private val url = userConfig.daoAddress
 
@@ -26,7 +26,7 @@ constructor(private val restTemplate: RestTemplate, private val userConfig: User
     try {
       val response: ResponseEntity<BotStatus> = restTemplate.getForEntity("$url/bot-status")
       return response.body
-    } catch (e: Exception) {
+    } catch (_: Exception) {
       return null
     }
   }

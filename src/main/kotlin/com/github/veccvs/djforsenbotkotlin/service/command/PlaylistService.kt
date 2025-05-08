@@ -6,15 +6,13 @@ import com.github.veccvs.djforsenbotkotlin.service.SkipCounterService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 
-/**
- * Service for handling playlist-related functionality
- */
+/** Service for handling playlist-related functionality */
 @Service
 class PlaylistService(
   @Autowired private val cytubeDao: CytubeDao,
   @Autowired private val messageService: MessageService,
   @Autowired private val skipCounterService: SkipCounterService,
-  @Autowired private val gachiSongRepository: GachiSongRepository
+  @Autowired private val gachiSongRepository: GachiSongRepository,
 ) {
   /**
    * Gets the current playlist and sends it to the user
@@ -43,7 +41,6 @@ class PlaylistService(
    * @param channel The channel to send the message to
    * @param canSkip Whether the user can skip
    * @param skipValue The number of skips needed to skip a video
-   * @param currentSkips The current number of skips
    * @param timeToNextSkip The time until the user can skip again
    */
   fun handleSkipCommand(
@@ -51,8 +48,7 @@ class PlaylistService(
     channel: String,
     canSkip: Boolean,
     skipValue: Long,
-    currentSkips: Int,
-    timeToNextSkip: String
+    timeToNextSkip: String,
   ) {
     if (canSkip) {
       skipCounterService.incrementSkipCounter()
@@ -69,7 +65,7 @@ class PlaylistService(
     } else {
       messageService.sendMessage(
         channel,
-        "docJAM @${username} You can skip a video every ${skipValue} minutes, time to skip video: $timeToNextSkip",
+        "docJAM @${username} You can skip a video every $skipValue minutes, time to skip video: $timeToNextSkip",
       )
     }
   }

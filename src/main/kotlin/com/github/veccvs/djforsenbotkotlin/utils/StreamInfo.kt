@@ -1,14 +1,13 @@
 package com.github.veccvs.djforsenbotkotlin.utils
 
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
-import org.json.JSONObject
 
 class StreamInfo {
   companion object {
-    // Factory for creating HttpURLConnection, can be replaced in tests
-    @JvmStatic
-    var httpConnectionFactory: ((URI) -> HttpURLConnection)? = null
+    // Factory for creating HttpURLConnection can be replaced in tests
+    @JvmStatic var httpConnectionFactory: ((URI) -> HttpURLConnection)? = null
 
     @JvmStatic
     fun streamEnabled(): Boolean {
@@ -17,7 +16,8 @@ class StreamInfo {
 
       try {
         // Use the factory if provided, otherwise use the default implementation
-        val connection = httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
+        val connection =
+          httpConnectionFactory?.invoke(uri) ?: uri.toURL().openConnection() as HttpURLConnection
 
         with(connection) {
           requestMethod = "GET"
@@ -33,17 +33,17 @@ class StreamInfo {
                 if (r.getJSONArray("data").length() > 0) {
                   cantResponse = true
                 }
-              } catch (e: Exception) {
+              } catch (_: Exception) {
                 // Handle JSON parsing errors
                 cantResponse = false
               }
             }
-          } catch (e: Exception) {
+          } catch (_: Exception) {
             // Handle IO errors
             cantResponse = false
           }
         }
-      } catch (e: Exception) {
+      } catch (_: Exception) {
         // Handle connection errors
         cantResponse = false
       }

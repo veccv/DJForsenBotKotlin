@@ -324,7 +324,7 @@ class CommandServiceTest {
     // Then
     verify(timeRestrictionService).setLastResponse(testUsername)
     verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, 2, "10 minutes")
+    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
   }
 
   @Test
@@ -349,7 +349,7 @@ class CommandServiceTest {
     // Then
     verify(timeRestrictionService).setLastResponse(testUsername)
     verify(timeRestrictionService, never()).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, 2, "10 minutes")
+    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, "10 minutes")
   }
 
   @Test
@@ -429,7 +429,7 @@ class CommandServiceTest {
 
     // Then
     verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, 2, "10 minutes")
+    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
   }
 
   @Test
@@ -445,7 +445,7 @@ class CommandServiceTest {
 
     // Then
     verify(timeRestrictionService, never()).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, 2, "10 minutes")
+    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, "10 minutes")
   }
 
   @Test
@@ -461,7 +461,7 @@ class CommandServiceTest {
 
     // Then
     verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, 2, "10 minutes")
+    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
   }
 
   @Test
