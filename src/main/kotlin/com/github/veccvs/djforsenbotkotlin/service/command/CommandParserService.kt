@@ -15,10 +15,19 @@ class CommandParserService {
    * @return The command if found, null otherwise
    */
   fun detectCommand(message: String): String? {
-    println("[COMMAND PARSER] Detecting command in message: $message")
+    // Only log if the message might be a command
+    if (message.startsWith(";")) {
+      println("[COMMAND PARSER] Detecting command in message: $message")
+    }
+
     val command = message.split(" ")[0]
     val result = if (command.startsWith(";")) command else null
-    println("[COMMAND PARSER] Command detected: $result")
+
+    // Only log if a command was actually detected
+    if (result != null) {
+      println("[COMMAND PARSER] Command detected: $result")
+    }
+
     return result
   }
 
