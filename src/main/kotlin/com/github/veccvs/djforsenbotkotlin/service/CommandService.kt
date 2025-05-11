@@ -9,6 +9,9 @@ import com.github.veccvs.djforsenbotkotlin.service.command.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Service responsible for managing and executing commands in a Twitch chat context. It processes
@@ -349,7 +352,7 @@ class CommandService(
         user.spotifyAccessToken = tokenMap["token"]
         user.spotifyRefreshToken = tokenMap["refreshToken"]
         // Set a default expiration time (1 hour)
-        user.spotifyTokenExpiration = java.time.LocalDateTime.now().plusMinutes(5)
+        user.spotifyTokenExpiration = LocalDateTime.now().plusMinutes(5)
 
         userRepository.save(user)
         return true
@@ -404,7 +407,7 @@ class CommandService(
   /**
    * Tracks the user's currently playing Spotify songs. The first song is added immediately, while
    * subsequent songs are added when the user is eligible to add them based on time restrictions.
-   * Will track up to 5 songs total.
+   * Will track up to the configured maximum number of songs total.
    *
    * @param username The username of the user
    * @param channel The channel to send the message to
@@ -430,7 +433,7 @@ class CommandService(
 
     messageService.sendMessage(
       channel,
-      "docJAM @$username Now tracking your Spotify. Songs will be added when you're eligible to add them (up to 5 songs total).",
+      "docJAM @$username Now tracking your Spotify. Songs will be added when you're eligible to add them (up to ${userConfig.maxTrackedSongs} songs total).",
     )
 
     // Start tracking in a background thread
@@ -444,9 +447,11 @@ class CommandService(
           var isFirstSong = true // Flag to track if it's the first song
           var lastNewSongTime =
             System.currentTimeMillis() // Track when the last new song was detected
+          mutableListOf<Pair<String, String?>>() // Pairs of (title, url)
 
-          // Track until 5 songs have been added or no new song for 10 minutes
-          while (songsAdded < 5) {
+          // Track until the configured maximum number of songs have been added or no new song for
+          // 10 minutes
+          while (songsAdded < userConfig.maxTrackedSongs) {
             // Check if it's been more than 10 minutes since the last new song
             if (
               System.currentTimeMillis() - lastNewSongTime > 600000
@@ -457,6 +462,8 @@ class CommandService(
               )
               return@Thread
             }
+
+            // We don't use pending songs anymore - we try to add songs immediately when detected
 
             // Get the latest user data to ensure we have the most up-to-date tokens
             val updatedUser = userRepository.findByUsername(username)
@@ -498,7 +505,7 @@ class CommandService(
 
               // Short sleep to avoid hammering the API
               try {
-                Thread.sleep(1000)
+                Thread.sleep(20000)
               } catch (ie: InterruptedException) {
                 logger.warn("[SPOTIFY TRACKER] Thread interrupted during token refresh sleep")
                 Thread.currentThread().interrupt() // Preserve interrupt status
@@ -513,27 +520,18 @@ class CommandService(
 
               // If this is a new song, start tracking it internally (don't announce to user yet)
               if (currentTitle != null && currentTitle != lastSongTitle) {
-                logger.info("[SPOTIFY TRACKER] Detected potential song: $currentTitle")
+                if (!timeRestrictionService.canUserAddVideo(username)) {
+                  continue
+                }
+
                 lastSongTitle = currentTitle
                 lastSongUrl = currentUrl
                 lastNewSongTime = System.currentTimeMillis() // Update the last new song time
 
-                // For all songs except the first one, check if the user can add a video based on
-                // time restrictions
-                if (!isFirstSong) {
-                  // Check if the user can add a video
-                  if (!timeRestrictionService.canUserAddVideo(username)) {
-                    // Only log internally, don't announce to user yet
-                    logger.info(
-                      "[SPOTIFY TRACKER] User cannot add a song yet due to time restrictions. Will check again for: $currentTitle"
-                    )
-                    continue // Skip this iteration and check again later
-                  }
-                } else {
+                // This way we can try to add the song while the user is still listening to it
+                if (isFirstSong) {
                   isFirstSong = false // Mark that we've processed the first song
-                  logger.info(
-                    "[SPOTIFY TRACKER] First song, skipping time restriction check but still confirming: $currentTitle"
-                  )
+                  logger.info("[SPOTIFY TRACKER] First song detected: $currentTitle")
                 }
 
                 // Get the latest user data again before checking the song
@@ -605,11 +603,18 @@ class CommandService(
                         addedSongs.add(lastSongUrl)
                         songsAdded++
                         logger.info(
-                          "[SPOTIFY TRACKER] Successfully added song $songsAdded/5: $lastSongTitle"
+                          "[SPOTIFY TRACKER] Successfully added song $songsAdded/${userConfig.maxTrackedSongs}: $lastSongTitle"
                         )
+                        // Update the lastAddedVideo timestamp to reset the cooldown
+                        val user = userRepository.findByUsername(username)
+                        if (user != null) {
+                          user.lastAddedVideo =
+                            LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+                          userRepository.save(user)
+                        }
                         messageService.sendMessage(
                           channel,
-                          "docJAM @$username Spotify tracker added song $songsAdded/5: $lastSongTitle",
+                          "docJAM @$username Spotify tracker added song $songsAdded/${userConfig.maxTrackedSongs}: $lastSongTitle",
                         )
                       } else {
                         logger.warn("[SPOTIFY TRACKER] Failed to add song: $lastSongTitle")
@@ -623,9 +628,54 @@ class CommandService(
                     )
                   }
                 } else {
+                  // Even if the user skipped the song, we'll still try to add it
+                  // This way we can add songs that the user only listened to for a short time
                   logger.info(
-                    "[SPOTIFY TRACKER] User skipped the song or not playing anymore: $lastSongTitle"
+                    "[SPOTIFY TRACKER] User skipped the song or not playing anymore, but we'll still try to add it: $lastSongTitle"
                   )
+
+                  // Check if we've already added this song
+                  if (lastSongUrl != null && !addedSongs.contains(lastSongUrl)) {
+                    // Add the song to the playlist
+                    logger.info("[SPOTIFY TRACKER] Attempting to add skipped song: $lastSongTitle")
+                    val searchCommand = TwitchCommand("", listOf(lastSongTitle ?: ""))
+                    try {
+                      val added =
+                        videoSearchService.searchVideo(
+                          searchCommand,
+                          channel,
+                          username,
+                          false,
+                          false,
+                        )
+                      if (added) {
+                        addedSongs.add(lastSongUrl)
+                        songsAdded++
+                        logger.info(
+                          "[SPOTIFY TRACKER] Successfully added skipped song $songsAdded/${userConfig.maxTrackedSongs}: $lastSongTitle"
+                        )
+                        // Update the lastAddedVideo timestamp to reset the cooldown
+                        val user = userRepository.findByUsername(username)
+                        if (user != null) {
+                          user.lastAddedVideo =
+                            LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+                          userRepository.save(user)
+                        }
+                        messageService.sendMessage(
+                          channel,
+                          "docJAM @$username Spotify tracker added song $songsAdded/${userConfig.maxTrackedSongs}: $lastSongTitle",
+                        )
+                      } else {
+                        logger.warn("[SPOTIFY TRACKER] Failed to add skipped song: $lastSongTitle")
+                      }
+                    } catch (e: Exception) {
+                      logger.error("[SPOTIFY TRACKER] Error adding skipped song: ${e.message}")
+                    }
+                  } else {
+                    logger.info(
+                      "[SPOTIFY TRACKER] Skipped song already added or URL is null: $lastSongTitle"
+                    )
+                  }
                 }
               }
             } else {
@@ -658,7 +708,8 @@ class CommandService(
 
   /**
    * Adds the currently playing Spotify song to the playlist if it has been playing for at least 2
-   * minutes. Only adds one song, unlike trackAndAddSpotifyCommand which adds up to 5 songs.
+   * minutes. Only adds one song, unlike trackAndAddSpotifyCommand which adds up to the configured
+   * maximum number of songs.
    *
    * @param username The username of the user
    * @param channel The channel to send the message to
