@@ -575,9 +575,6 @@ class CommandService(
     // Start tracking in a background thread
     Thread {
         try {
-          // Wait for 2 minutes
-          Thread.sleep(120000)
-
           // Check if the same song is still playing
           val checkSong =
             spotifyService.getCurrentlyPlayingSong(
@@ -605,8 +602,6 @@ class CommandService(
               )
 
             if (retryCheckSong != null && retryCheckSong["title"] == songTitle) {
-              // The song has been playing for at least 2 minutes
-              // Add the song to the playlist
               val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
               if (videoSearchService.searchVideo(searchCommand, channel, username)) {
                 messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
@@ -621,8 +616,6 @@ class CommandService(
           }
 
           if (checkSong != null && checkSong["title"] == songTitle) {
-            // The song has been playing for at least 2 minutes
-            // Add the song to the playlist
             val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
             if (videoSearchService.searchVideo(searchCommand, channel, username)) {
               messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
