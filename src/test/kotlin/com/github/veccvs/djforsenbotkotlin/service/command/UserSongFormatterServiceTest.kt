@@ -200,7 +200,7 @@ class UserSongFormatterServiceTest {
     `when`(cytubeDao.getPlaylist()).thenReturn(playlist)
 
     // When
-    val result = userSongFormatterService.calculateEstimatedTime(songLink)
+    val result = userSongFormatterService.estimateSongTime(songLink)
 
     // Then
     // Expected:
@@ -249,7 +249,7 @@ class UserSongFormatterServiceTest {
 
     // First call to set up lastPlaylist and lastUpdateTime
     `when`(cytubeDao.getPlaylist()).thenReturn(playlist1)
-    val result1 = userSongFormatterService.calculateEstimatedTime(songLink)
+    val result1 = userSongFormatterService.estimateSongTime(songLink)
     assertEquals("02:00", result1) // 120 seconds = 02:00
 
     // Create a second playlist with the same currentTime (simulating that the external system
@@ -265,7 +265,7 @@ class UserSongFormatterServiceTest {
       )
 
     // Mock the current time to be 30 seconds later
-    val field = UserSongFormatterService::class.java.getDeclaredField("lastUpdateTime")
+    val field = UserSongFormatterService::class.java.getDeclaredField("lastUpdateTimeMillis")
     field.isAccessible = true
     field.set(
       userSongFormatterService,
@@ -274,7 +274,7 @@ class UserSongFormatterServiceTest {
 
     // Second call should adjust the time based on elapsed time
     `when`(cytubeDao.getPlaylist()).thenReturn(playlist2)
-    val result2 = userSongFormatterService.calculateEstimatedTime(songLink)
+    val result2 = userSongFormatterService.estimateSongTime(songLink)
 
     // Expected:
     // - 30 seconds have passed, so remaining time should be 90 seconds = 01:30
