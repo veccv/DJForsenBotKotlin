@@ -7,24 +7,22 @@ import com.github.veccvs.djforsenbotkotlin.model.Video
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.SongService
 import com.github.veccvs.djforsenbotkotlin.service.UserSongService
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Service
 import java.text.Normalizer
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.regex.Pattern
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.stereotype.Service
 
-/**
- * Service for handling video search functionality
- */
+/** Service for handling video search functionality */
 @Service
 class VideoSearchService(
   @Autowired private val cytubeDao: CytubeDao,
   @Autowired private val songService: SongService,
   @Autowired private val userRepository: UserRepository,
   @Autowired private val userSongService: UserSongService,
-  @Autowired private val messageService: MessageService
+  @Autowired private val messageService: MessageService,
 ) {
   /**
    * Gets the correct result from a list of videos based on duration
@@ -37,7 +35,8 @@ class VideoSearchService(
   }
 
   /**
-   * Normalizes text by removing diacritical marks and replacing non-alphanumeric characters with spaces
+   * Normalizes text by removing diacritical marks and replacing non-alphanumeric characters with
+   * spaces
    *
    * @param input The text to normalize
    * @return The normalized text
@@ -54,9 +53,17 @@ class VideoSearchService(
    * @param twitchCommand The command containing the search parameters
    * @param channel The channel to send the message to
    * @param username The username of the user who sent the command
+   * @param sendMessage Whether to send a message about the added video (default: true)
+   * @param updateNotificationFlag Whether to update the userNotified flag (default: true)
    * @return True if the search was successful, false otherwise
    */
-  fun searchVideo(twitchCommand: TwitchCommand, channel: String, username: String): Boolean {
+  fun searchVideo(
+    twitchCommand: TwitchCommand,
+    channel: String,
+    username: String,
+    sendMessage: Boolean = true,
+    updateNotificationFlag: Boolean = true,
+  ): Boolean {
     if (cytubeDao.getBotStatus() != null) {
       val searchPhrase = twitchCommand.params.joinToString(" ")
       val searchResult = cytubeDao.searchVideos(searchPhrase)
@@ -66,23 +73,31 @@ class VideoSearchService(
           val videoUrl = "https://youtu.be/${correctResult.id}"
           cytubeDao.addVideo(videoUrl)
           songService.addUniqueSong(videoUrl)
-          updateUserAddedVideo(username)
+          updateUserAddedVideo(username, updateNotificationFlag)
 
           // Store the song in the UserSong entity
           val videoTitle = normalizeText(correctResult.title).drop(0).take(50)
           userSongService.addUserSong(username, videoUrl, videoTitle)
 
-          messageService.sendMessage(channel, "$username docJAM added $videoTitle [...]")
+          if (sendMessage) {
+            messageService.sendMessage(channel, "$username docJAM added $videoTitle [...]")
+          }
           return true
         } else {
-          messageService.sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
+          messageService.sendMessage(
+            channel,
+            "@${username} docJAM Bot is resetting, wait a few seconds :)",
+          )
         }
       } else {
-        updateUserAddedVideo(username)
+        updateUserAddedVideo(username, updateNotificationFlag)
         messageService.sendMessage(channel, "@${username} docJAM No results found")
       }
     } else {
-      messageService.sendMessage(channel, "@${username} docJAM Bot is resetting, wait a few seconds :)")
+      messageService.sendMessage(
+        channel,
+        "@${username} docJAM Bot is resetting, wait a few seconds :)",
+      )
     }
     return false
   }
@@ -91,12 +106,16 @@ class VideoSearchService(
    * Updates the user's last added video timestamp
    *
    * @param username The username of the user
+   * @param updateNotificationFlag Whether to update the userNotified flag (default: true)
    */
-  private fun updateUserAddedVideo(username: String) {
+  private fun updateUserAddedVideo(username: String, updateNotificationFlag: Boolean = true) {
     userRepository.save(
       userRepository.findByUsername(username)?.apply {
         lastAddedVideo = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
-        userNotified = false
+        // Only update the userNotified flag if updateNotificationFlag is true
+        if (updateNotificationFlag) {
+          userNotified = false
+        }
       } ?: User(username)
     )
   }
