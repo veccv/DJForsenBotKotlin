@@ -6,6 +6,7 @@ import com.github.veccvs.djforsenbotkotlin.model.TwitchCommand
 import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.command.*
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 
@@ -45,6 +46,9 @@ class CommandService(
      * to specific commands such as "; link" or "; where".
      */
     private const val CYTUBE_LINK = "https://cytu.be/r/forsenboys"
+
+    /** Logger instance for this class. */
+    private val logger = LoggerFactory.getLogger(CommandService::class.java)
   }
 
   /**
@@ -78,7 +82,7 @@ class CommandService(
     }
 
     if (message.startsWith("!djfors_")) {
-      println("[COMMAND HANDLER] Detected !djfors_ command")
+      logger.info("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
       return
     }
@@ -86,7 +90,7 @@ class CommandService(
     val command = commandParserService.detectCommand(message)
 
     if (command != null) {
-      println("[COMMAND HANDLER] Detected command: $command")
+        logger.info("[COMMAND HANDLER] Detected command: $command")
       userRepository.findByUsername(username) ?: userRepository.save(User(username))
       if (!timeRestrictionService.canResponseToCommand(username)) return
       timeRestrictionService.setLastResponse(username)
@@ -110,7 +114,7 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track spotify, ;current"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;current"
     val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
     when (twitchCommand?.command) {
       ";link",
@@ -160,11 +164,7 @@ class CommandService(
       }
 
       ";track" -> {
-        if (twitchCommand.params.isNotEmpty() && twitchCommand.params[0] == "spotify") {
-          trackAndAddSpotifyCommand(username, channel)
-        } else {
-          messageService.sendMessage(channel, unknownCommandMessage)
-        }
+        trackAndAddSpotifyCommand(username, channel)
       }
 
       ";current" -> {
@@ -201,6 +201,7 @@ class CommandService(
    *   otherwise.
    */
   private fun checkAndNotifyUserCanAddVideo(username: String, channel: String): Boolean {
+    // Check if user is on cooldown
     if (!timeRestrictionService.canUserAddVideo(username)) {
       messageService.sendMessage(
         channel,
@@ -210,6 +211,14 @@ class CommandService(
       )
       return true
     }
+
+    // Check if user is currently tracking Spotify or has been notified already
+    val user = userRepository.findByUsername(username)
+    if (user != null && user.userNotified) {
+      // User is already tracking or has been notified, don't send another notification
+      return false
+    }
+
     return false
   }
 
@@ -270,6 +279,12 @@ class CommandService(
     if (success) {
       timeRestrictionService.resetVideoCooldown(username)
       timeRestrictionService.setLastRemoval(username)
+      // Set userNotified to true to prevent notification
+      val user = userRepository.findByUsername(username)
+      if (user != null) {
+        user.userNotified = true
+        userRepository.save(user)
+      }
       messageService.sendMessage(
         channel,
         "docJAM @$username Removed your song '${song.title}'. You can add another song now.",
@@ -308,7 +323,7 @@ class CommandService(
         "docJAM @$username I've sent you a whisper with instructions to connect your Spotify account.",
       )
     } catch (e: Exception) {
-      println("[COMMAND SERVICE] Error sending Spotify authentication link: ${e.message}")
+      logger.error("[COMMAND SERVICE] Error sending Spotify authentication link: ${e.message}")
       messageService.sendMessage(
         channel,
         "docJAM @$username Error connecting to Spotify. Please try again later.",
@@ -340,7 +355,7 @@ class CommandService(
         return true
       }
     } catch (e: Exception) {
-      println("[COMMAND SERVICE] Error processing Spotify token message: ${e.message}")
+      logger.error("[COMMAND SERVICE] Error processing Spotify token message: ${e.message}")
     }
     return false
   }
@@ -365,7 +380,7 @@ class CommandService(
         tokenResponse
       }
 
-    println("[COMMAND SERVICE] Extracted token part: $tokenPart")
+    logger.info("[COMMAND SERVICE] Extracted token part: $tokenPart")
 
     // Split by semicolon to get individual key-value pairs
     val pairs = tokenPart.split(";")
@@ -382,13 +397,13 @@ class CommandService(
       }
     }
 
-    println("[COMMAND SERVICE] Parsed token map: $result")
+    logger.info("[COMMAND SERVICE] Parsed token map: $result")
     return result
   }
 
   /**
-   * Tracks the user's currently playing Spotify songs. The first song is added immediately,
-   * while subsequent songs are added if they've been playing for at least 2 minutes.
+   * Tracks the user's currently playing Spotify songs. The first song is added immediately, while
+   * subsequent songs are added when the user is eligible to add them based on time restrictions.
    * Will track up to 5 songs total.
    *
    * @param username The username of the user
@@ -407,9 +422,15 @@ class CommandService(
       return
     }
 
+    // Set userNotified to true to prevent notification
+    if (user != null) {
+      user.userNotified = true
+      userRepository.save(user)
+    }
+
     messageService.sendMessage(
       channel,
-      "docJAM @$username Now tracking your Spotify. Your first song will be added immediately, and subsequent songs that play for at least 2 minutes will be added (up to 5 songs total). Tracking will stop after 10 minutes if no new songs are detected.",
+      "docJAM @$username Now tracking your Spotify. Songs will be added when you're eligible to add them (up to 5 songs total).",
     )
 
     // Start tracking in a background thread
@@ -437,12 +458,32 @@ class CommandService(
               return@Thread
             }
 
+            // Get the latest user data to ensure we have the most up-to-date tokens
+            val updatedUser = userRepository.findByUsername(username)
+            if (
+              updatedUser == null ||
+                updatedUser.spotifyAccessToken == null ||
+                updatedUser.spotifyRefreshToken == null
+            ) {
+              logger.warn("[SPOTIFY TRACKER] User data or tokens missing for $username")
+              messageService.sendMessage(
+                channel,
+                "docJAM @$username Error tracking your Spotify songs: account data missing. Please try again.",
+              )
+              return@Thread
+            }
+
             // Get the currently playing song
             val currentSong =
-              spotifyService.getCurrentlyPlayingSong(
-                user.spotifyAccessToken!!,
-                user.spotifyRefreshToken!!,
-              )
+              try {
+                spotifyService.getCurrentlyPlayingSong(
+                  updatedUser.spotifyAccessToken!!,
+                  updatedUser.spotifyRefreshToken!!,
+                )
+              } catch (e: Exception) {
+                logger.error("[SPOTIFY TRACKER] Error getting current song: ${e.message}")
+                null
+              }
 
             // Check if we got an error response with a new token
             if (
@@ -451,8 +492,18 @@ class CommandService(
                 currentSong["error"] == "token_expired"
             ) {
               // Update the user's access token
-              user.spotifyAccessToken = currentSong["new_token"]
-              userRepository.save(user)
+              logger.info("[SPOTIFY TRACKER] Refreshing token for $username")
+              updatedUser.spotifyAccessToken = currentSong["new_token"]
+              userRepository.save(updatedUser)
+
+              // Short sleep to avoid hammering the API
+              try {
+                Thread.sleep(1000)
+              } catch (ie: InterruptedException) {
+                logger.warn("[SPOTIFY TRACKER] Thread interrupted during token refresh sleep")
+                Thread.currentThread().interrupt() // Preserve interrupt status
+              }
+
               continue // Try again with the new token
             }
 
@@ -460,26 +511,55 @@ class CommandService(
               val currentTitle = currentSong["title"]
               val currentUrl = currentSong["url"]
 
-              // If this is a new song, start tracking it
-              if (currentTitle != lastSongTitle) {
-                println("[SPOTIFY TRACKER] New song detected: $currentTitle")
+              // If this is a new song, start tracking it internally (don't announce to user yet)
+              if (currentTitle != null && currentTitle != lastSongTitle) {
+                logger.info("[SPOTIFY TRACKER] Detected potential song: $currentTitle")
                 lastSongTitle = currentTitle
                 lastSongUrl = currentUrl
                 lastNewSongTime = System.currentTimeMillis() // Update the last new song time
 
-                // Wait for 2 minutes for all songs except the first one
+                // For all songs except the first one, check if the user can add a video based on
+                // time restrictions
                 if (!isFirstSong) {
-                  Thread.sleep(120000)
+                  // Check if the user can add a video
+                  if (!timeRestrictionService.canUserAddVideo(username)) {
+                    // Only log internally, don't announce to user yet
+                    logger.info(
+                      "[SPOTIFY TRACKER] User cannot add a song yet due to time restrictions. Will check again for: $currentTitle"
+                    )
+                    continue // Skip this iteration and check again later
+                  }
                 } else {
                   isFirstSong = false // Mark that we've processed the first song
+                  logger.info(
+                    "[SPOTIFY TRACKER] First song, skipping time restriction check but still confirming: $currentTitle"
+                  )
+                }
+
+                // Get the latest user data again before checking the song
+                val latestUser = userRepository.findByUsername(username)
+                if (
+                  latestUser == null ||
+                    latestUser.spotifyAccessToken == null ||
+                    latestUser.spotifyRefreshToken == null
+                ) {
+                  logger.warn(
+                    "[SPOTIFY TRACKER] User data or tokens missing for $username during song check"
+                  )
+                  continue // Skip this iteration and try again
                 }
 
                 // Check if the same song is still playing
                 val checkSong =
-                  spotifyService.getCurrentlyPlayingSong(
-                    user.spotifyAccessToken!!,
-                    user.spotifyRefreshToken!!,
-                  )
+                  try {
+                    spotifyService.getCurrentlyPlayingSong(
+                      latestUser.spotifyAccessToken!!,
+                      latestUser.spotifyRefreshToken!!,
+                    )
+                  } catch (e: Exception) {
+                    logger.error("[SPOTIFY TRACKER] Error checking current song: ${e.message}")
+                    null
+                  }
 
                 // Check if we got an error response with a new token
                 if (
@@ -488,40 +568,85 @@ class CommandService(
                     checkSong["error"] == "token_expired"
                 ) {
                   // Update the user's access token
-                  user.spotifyAccessToken = checkSong["new_token"]
-                  userRepository.save(user)
+                  logger.info("[SPOTIFY TRACKER] Refreshing token during song check for $username")
+                  latestUser.spotifyAccessToken = checkSong["new_token"]
+                  userRepository.save(latestUser)
+
+                  // Short sleep to avoid hammering the API
+                  try {
+                    Thread.sleep(1000)
+                  } catch (ie: InterruptedException) {
+                    logger.warn("[SPOTIFY TRACKER] Thread interrupted during token refresh sleep")
+                    Thread.currentThread().interrupt() // Preserve interrupt status
+                  }
+
                   continue // Try again with the new token
                 }
 
                 if (checkSong != null && checkSong["title"] == lastSongTitle) {
-                  // The song has been playing for at least 2 minutes
+                  // The song is still playing and user can add it - now we can officially detect it
+                  logger.info("[SPOTIFY TRACKER] New song detected: $lastSongTitle")
+
                   // Check if we've already added this song
                   if (lastSongUrl != null && !addedSongs.contains(lastSongUrl)) {
                     // Add the song to the playlist
+                    logger.info("[SPOTIFY TRACKER] Attempting to add song: $lastSongTitle")
                     val searchCommand = TwitchCommand("", listOf(lastSongTitle ?: ""))
-                    if (videoSearchService.searchVideo(searchCommand, channel, username)) {
-                      addedSongs.add(lastSongUrl)
-                      songsAdded++
-                      messageService.sendMessage(
-                        channel,
-                        "docJAM @$username Added song $songsAdded/5: $lastSongTitle",
-                      )
+                    try {
+                      val added =
+                        videoSearchService.searchVideo(
+                          searchCommand,
+                          channel,
+                          username,
+                          false,
+                          false,
+                        )
+                      if (added) {
+                        addedSongs.add(lastSongUrl)
+                        songsAdded++
+                        logger.info(
+                          "[SPOTIFY TRACKER] Successfully added song $songsAdded/5: $lastSongTitle"
+                        )
+                        messageService.sendMessage(
+                          channel,
+                          "docJAM @$username Spotify tracker added song $songsAdded/5: $lastSongTitle",
+                        )
+                      } else {
+                        logger.warn("[SPOTIFY TRACKER] Failed to add song: $lastSongTitle")
+                      }
+                    } catch (e: Exception) {
+                      logger.error("[SPOTIFY TRACKER] Error adding song: ${e.message}")
                     }
+                  } else {
+                    logger.info(
+                      "[SPOTIFY TRACKER] Song already added or URL is null: $lastSongTitle"
+                    )
                   }
+                } else {
+                  logger.info(
+                    "[SPOTIFY TRACKER] User skipped the song or not playing anymore: $lastSongTitle"
+                  )
                 }
               }
+            } else {
+              logger.info("[SPOTIFY TRACKER] No song currently playing or error getting song info")
             }
 
             // Wait a bit before checking again
-            Thread.sleep(10000) // Check every 10 seconds
+            try {
+              Thread.sleep(10000) // Check every 10 seconds
+            } catch (ie: InterruptedException) {
+              logger.warn("[SPOTIFY TRACKER] Thread interrupted during 10-second wait")
+              Thread.currentThread().interrupt() // Preserve interrupt status
+            }
           }
 
           messageService.sendMessage(
             channel,
-            "docJAM @$username Finished tracking. Added 5 songs to the playlist.",
+            "docJAM @$username Finished tracking. Added $songsAdded songs to the playlist.",
           )
         } catch (e: Exception) {
-          println("[SPOTIFY TRACKER] Error tracking songs: ${e.message}")
+          logger.error("[SPOTIFY TRACKER] Error tracking songs: ${e.message}", e)
           messageService.sendMessage(
             channel,
             "docJAM @$username Error tracking your Spotify songs. Please try again.",
@@ -609,7 +734,7 @@ class CommandService(
 
             if (retryCheckSong != null && retryCheckSong["title"] == songTitle) {
               val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
-              if (videoSearchService.searchVideo(searchCommand, channel, username)) {
+              if (videoSearchService.searchVideo(searchCommand, channel, username, false, false)) {
                 messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
               }
             } else {
@@ -623,7 +748,7 @@ class CommandService(
 
           if (checkSong != null && checkSong["title"] == songTitle) {
             val searchCommand = TwitchCommand("", listOf(songTitle ?: ""))
-            if (videoSearchService.searchVideo(searchCommand, channel, username)) {
+            if (videoSearchService.searchVideo(searchCommand, channel, username, false, false)) {
               messageService.sendMessage(channel, "docJAM @$username Added song: $songTitle")
             }
           } else {
@@ -633,7 +758,7 @@ class CommandService(
             )
           }
         } catch (e: Exception) {
-          println("[SPOTIFY CURRENT] Error adding current song: ${e.message}")
+          logger.error("[SPOTIFY CURRENT] Error adding current song: ${e.message}", e)
           messageService.sendMessage(
             channel,
             "docJAM @$username Error adding your current Spotify song. Please try again.",

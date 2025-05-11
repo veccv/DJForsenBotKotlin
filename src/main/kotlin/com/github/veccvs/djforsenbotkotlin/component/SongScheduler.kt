@@ -7,10 +7,10 @@ import com.github.veccvs.djforsenbotkotlin.repository.SongRepository
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.CommandService
 import com.github.veccvs.djforsenbotkotlin.service.SkipCounterService
-import java.time.LocalDateTime
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.LocalDateTime
 
 @Component
 class SongScheduler(
@@ -65,8 +65,12 @@ class SongScheduler(
   @Scheduled(fixedDelay = 2000)
   fun notifyUsers() {
     if (cytubeDao.getBotStatus() != null && cytubeDao.getBotStatus()!!.botEnabled) {
+      // Only notify users who haven't been notified yet and are not currently tracking Spotify
       userRepository.findAllByUserNotifiedIsFalse().forEach {
+        // Check if enough time has passed since they last added a video
         if (LocalDateTime.now().isAfter(it.lastAddedVideo.plusMinutes(2))) {
+          // Only send notification if the user is not currently tracking Spotify
+          // (userNotified is already false, so we know they're not tracking)
           commandService.sendMessage(
             userConfig.channelName!!,
             "@${it.username} forsenJam you can add song now! forsenMaxLevel",
