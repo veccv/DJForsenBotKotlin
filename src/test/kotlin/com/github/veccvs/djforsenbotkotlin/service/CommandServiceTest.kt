@@ -8,6 +8,7 @@ import com.github.veccvs.djforsenbotkotlin.model.User
 import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.command.*
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -41,6 +42,8 @@ class CommandServiceTest {
   @Mock private lateinit var skipCounterService: SkipCounterService
 
   @Mock private lateinit var userSongService: UserSongService
+
+  @Mock private lateinit var spotifyService: SpotifyService
 
   @Mock private lateinit var twitchConnector: TwitchConnector
 
@@ -581,5 +584,38 @@ class CommandServiceTest {
     verify(playlistService, never()).removeVideo(anyString())
     verify(timeRestrictionService, never()).resetVideoCooldown(anyString())
     verify(timeRestrictionService, never()).setLastRemoval(anyString())
+  }
+
+  @Test
+  fun `test parseTokenResponse with standard token format`() {
+    // Given
+    val tokenResponse = "token=abc123;refreshToken=xyz789;"
+
+    // When
+    val result = commandService.parseTokenResponse(tokenResponse)
+
+    // Then
+    assertEquals("abc123", result["token"])
+    assertEquals("xyz789", result["refreshToken"])
+  }
+
+  @Test
+  fun `test parseTokenResponse with Twitch whisper format`() {
+    // Given
+    val twitchWhisperMessage =
+      "@badges=rplace-2023/1;color=#FF0000;display-name=veccvs;emotes=;message-id=40;thread-id=99548338_517979103;turbo=0;user-id=517979103;user-type= :veccvs!veccvs@veccvs.tmi.twitch.tv WHISPER djfors_ :token=BQBHqhOmbOxGkxA0gkuw7OOULtvUrb0bZxv7CeT2wMcBD278WyWs6qtFyOm8GvyYdXeUBWtD2lMWG__LUJUQ0js6uQ3AQrxZcODSgaFJo5CXoG6-V8BRaKKaonGZobTNwukfx5tBU5VK6trLBPJtz8q0pB_glM_0wNSnArkRjF9MHIWG9c06g1kBsUuKkUy91A14SEifG6gyHK6uHTTdTJo1iYN6mrI9ALnHxpIeI9UknrbqVKztlw;refreshToken=AQB3tGUbDkuXnKMg150cCRw_nZGUfNN19h-zPOxUO0e0Yo-2LbJr1VGGoOVAtYWY5zCfLGbmEObC6HMAAI9e1nDJXCikeNvcDU5kpc6vDuRHVgn7o3tBbvnmY0Ct1RmnQNg;"
+
+    // When
+    val result = commandService.parseTokenResponse(twitchWhisperMessage)
+
+    // Then
+    assertEquals(
+      "BQBHqhOmbOxGkxA0gkuw7OOULtvUrb0bZxv7CeT2wMcBD278WyWs6qtFyOm8GvyYdXeUBWtD2lMWG__LUJUQ0js6uQ3AQrxZcODSgaFJo5CXoG6-V8BRaKKaonGZobTNwukfx5tBU5VK6trLBPJtz8q0pB_glM_0wNSnArkRjF9MHIWG9c06g1kBsUuKkUy91A14SEifG6gyHK6uHTTdTJo1iYN6mrI9ALnHxpIeI9UknrbqVKztlw",
+      result["token"],
+    )
+    assertEquals(
+      "AQB3tGUbDkuXnKMg150cCRw_nZGUfNN19h-zPOxUO0e0Yo-2LbJr1VGGoOVAtYWY5zCfLGbmEObC6HMAAI9e1nDJXCikeNvcDU5kpc6vDuRHVgn7o3tBbvnmY0Ct1RmnQNg",
+      result["refreshToken"],
+    )
   }
 }

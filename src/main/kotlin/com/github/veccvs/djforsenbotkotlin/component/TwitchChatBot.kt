@@ -9,6 +9,7 @@ import org.pircbotx.PircBotX
 import org.pircbotx.cap.EnableCapHandler
 import org.pircbotx.hooks.ListenerAdapter
 import org.pircbotx.hooks.events.MessageEvent
+import org.pircbotx.hooks.events.UnknownEvent
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Lazy
@@ -30,16 +31,75 @@ constructor(
   private val maxRetries = 3
   private var reconnecting = false
   private val reconnectLock = Object()
+  private val twitchConnector = TwitchConnector()
+
+  override fun onUnknown(event: UnknownEvent) {
+    val line = event.line
+    if (line.contains("WHISPER") && line.contains("token=") && line.contains("refreshToken=")) {
+      logger.info("Whisper message detected in UnknownEvent: $line")
+      processRawWhisperMessage(line)
+    }
+  }
 
   override fun onMessage(event: MessageEvent) {
     val sender = event.user?.nick ?: ""
     val message = event.message
     val channel = event.channel.name
+
     // Only log messages that are bot commands (starting with "!djfors_" or ";")
     if (message.startsWith("!djfors_") || message.startsWith(";")) {
       logger.info("[BOT RECEIVED] Message from $sender in $channel: $message")
     }
     commandService.commandHandler(sender, message, channel)
+  }
+
+  /**
+   * Handles raw IRC messages that might contain WHISPER messages. This is needed because Twitch's
+   * WHISPER messages are not being recognized as private messages by PircBotX.
+   */
+  fun processRawWhisperMessage(rawMessage: String) {
+    logger.info("[BOT RAW WHISPER] Processing raw whisper message: $rawMessage")
+
+    // Check if this is a WHISPER message with token information
+    if (
+      rawMessage.contains("WHISPER") &&
+        rawMessage.contains("token=") &&
+        rawMessage.contains("refreshToken=")
+    ) {
+      // Extract the sender from the raw message
+      // Format is typically: @badges=...;display-name=veccvs;...
+      // :veccvs!veccvs@veccvs.tmi.twitch.tv WHISPER djfors_ :token=...
+      val senderMatch = Regex(":([^!]+)!").find(rawMessage)
+      val sender = senderMatch?.groupValues?.get(1) ?: "unknown"
+
+      logger.info(
+        "[BOT SPOTIFY] Detected potential Spotify token message from $sender in raw whisper"
+      )
+
+      // Process the token message
+      val success = commandService.processSpotifyTokenMessage(sender, rawMessage)
+
+      val channelName = userConfig.channelName ?: "#veccvs"
+      if (success) {
+        logger.info(
+          "[BOT SPOTIFY] Successfully processed Spotify tokens for user $sender from raw whisper"
+        )
+        // Send a confirmation message to the chat
+        sendMessage(
+          channelName,
+          "docJAM @$sender Your Spotify account has been connected successfully. You can now use ;current to add your currently playing song.",
+        )
+      } else {
+        logger.info(
+          "[BOT SPOTIFY] Failed to process Spotify tokens for user $sender from raw whisper"
+        )
+        // Send an error message to the chat
+        sendMessage(
+          channelName,
+          "docJAM @$sender Error connecting your Spotify account. The token format may be invalid. Please try again.",
+        )
+      }
+    }
   }
 
   fun sendMessage(channel: String, message: String) {

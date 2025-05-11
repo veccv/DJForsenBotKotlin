@@ -110,7 +110,7 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;authorize, ;add spotify, ;track spotify, ;current"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track spotify, ;current"
     val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
     when (twitchCommand?.command) {
       ";link",
@@ -159,24 +159,9 @@ class CommandService(
         connectSpotifyCommand(twitchCommand, username, channel)
       }
 
-      ";authorize" -> {
-        authorizeSpotifyCommand(twitchCommand, username, channel)
-      }
-
       ";track" -> {
         if (twitchCommand.params.isNotEmpty() && twitchCommand.params[0] == "spotify") {
           trackAndAddSpotifyCommand(username, channel)
-        } else {
-          messageService.sendMessage(channel, unknownCommandMessage)
-        }
-      }
-
-      ";add" -> {
-        if (twitchCommand.params.isNotEmpty()) {
-          when (twitchCommand.params[0]) {
-            "spotify" -> addSpotifyCommand(username, channel)
-            else -> messageService.sendMessage(channel, unknownCommandMessage)
-          }
         } else {
           messageService.sendMessage(channel, unknownCommandMessage)
         }
@@ -298,8 +283,8 @@ class CommandService(
   }
 
   /**
-   * Handles the connect command for Spotify integration Generates an authorization URL for the user
-   * to grant permissions to the application
+   * Handles the connect command for Spotify integration. Sends a link to the Spotify authentication
+   * page to the user via private message.
    *
    * @param twitchCommand The command (not used)
    * @param username The username of the user
@@ -311,21 +296,19 @@ class CommandService(
     channel: String,
   ) {
     try {
-      // Generate the authorization URL
-      val authUrl = spotifyService.getAuthorizationUrl()
-
-      // Send the authorization URL to the user via whisper
+      // Send the Spotify auth link to the user via whisper
+      val authUrl = "https://spotify-auth-lilac.vercel.app/"
       twitchConnector.sendWhisper(
         username,
-        "To connect your Spotify account, please visit this URL and authorize the application: $authUrl",
+        "To connect your Spotify account, please visit this URL: $authUrl and authorize the application. After authorizing, send me the copied token",
       )
 
       messageService.sendMessage(
         channel,
-        "docJAM @$username I've sent you a whisper with instructions to connect your Spotify account. After authorizing, you'll need to provide the code using ;authorize <code>",
+        "docJAM @$username I've sent you a whisper with instructions to connect your Spotify account.",
       )
     } catch (e: Exception) {
-      println("[COMMAND SERVICE] Error generating Spotify authorization URL: ${e.message}")
+      println("[COMMAND SERVICE] Error sending Spotify authentication link: ${e.message}")
       messageService.sendMessage(
         channel,
         "docJAM @$username Error connecting to Spotify. Please try again later.",
@@ -334,104 +317,73 @@ class CommandService(
   }
 
   /**
-   * Handles the authorize command for Spotify integration Exchanges the authorization code for
-   * access and refresh tokens
+   * Processes a Spotify token message from a whisper and updates the user's account
    *
-   * @param twitchCommand The command containing the authorization code
    * @param username The username of the user
-   * @param channel The channel to send the message to
+   * @param tokenMessage The token message from the whisper
+   * @return True if the tokens were successfully processed and saved, false otherwise
    */
-  private fun authorizeSpotifyCommand(
-    twitchCommand: TwitchCommand?,
-    username: String,
-    channel: String,
-  ) {
-    if (twitchCommand?.params?.isEmpty() == true) {
-      messageService.sendMessage(
-        channel,
-        "docJAM @$username Please provide the authorization code. Usage: ;authorize <code>",
-      )
-      return
-    }
+  fun processSpotifyTokenMessage(username: String, tokenMessage: String): Boolean {
+    try {
+      val tokenMap = parseTokenResponse(tokenMessage)
 
-    val authCode = twitchCommand?.params?.get(0)
-    val user = userRepository.findByUsername(username)
+      if (tokenMap.containsKey("token") && tokenMap.containsKey("refreshToken")) {
+        val user = userRepository.findByUsername(username) ?: userRepository.save(User(username))
 
-    if (user != null && !authCode.isNullOrBlank()) {
-      try {
-        // Exchange the authorization code for tokens
-        val tokenResponse = spotifyService.exchangeCodeForToken(authCode)
-
-        // Store the tokens in the user record
-        user.spotifyAccessToken = tokenResponse["access_token"] as String
-        user.spotifyRefreshToken = tokenResponse["refresh_token"] as String
-        val expiresIn = tokenResponse["expires_in"] as Long
-        user.spotifyTokenExpiration = java.time.LocalDateTime.now().plusSeconds(expiresIn - 60)
+        // Update the user's Spotify tokens
+        user.spotifyAccessToken = tokenMap["token"]
+        user.spotifyRefreshToken = tokenMap["refreshToken"]
+        // Set a default expiration time (1 hour)
+        user.spotifyTokenExpiration = java.time.LocalDateTime.now().plusMinutes(5)
 
         userRepository.save(user)
-
-        messageService.sendMessage(
-          channel,
-          "docJAM @$username Your Spotify account has been connected successfully. You can now use ;add spotify to add your currently playing song.",
-        )
-      } catch (e: Exception) {
-        println("[COMMAND SERVICE] Error exchanging Spotify authorization code: ${e.message}")
-        messageService.sendMessage(
-          channel,
-          "docJAM @$username Error connecting your Spotify account. The authorization code may be invalid or expired. Please try again with ;connect",
-        )
+        return true
       }
-    } else {
-      messageService.sendMessage(
-        channel,
-        "docJAM @$username Error connecting your Spotify account. Please try again.",
-      )
+    } catch (e: Exception) {
+      println("[COMMAND SERVICE] Error processing Spotify token message: ${e.message}")
     }
+    return false
   }
 
   /**
-   * Handles the add spotify command to add the currently playing Spotify song
+   * Parses the token response from the user in the format "token=value;refreshToken=value;" The
+   * response might be embedded in a full Twitch whisper message.
    *
-   * @param username The username of the user
-   * @param channel The channel to send the message to
+   * @param tokenResponse The token response string
+   * @return A map containing the parsed token values
    */
-  private fun addSpotifyCommand(username: String, channel: String) {
-    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+  fun parseTokenResponse(tokenResponse: String): Map<String, String> {
+    val result = mutableMapOf<String, String>()
 
-    val user = userRepository.findByUsername(username)
+    // Extract the actual token part from the message
+    // The token part comes after "WHISPER djfors_ :" in a Twitch whisper
+    val tokenPart =
+      if (tokenResponse.contains("WHISPER djfors_")) {
+        val parts = tokenResponse.split("WHISPER djfors_ :")
+        if (parts.size > 1) parts[1] else tokenResponse
+      } else {
+        tokenResponse
+      }
 
-    if (user?.spotifyAccessToken == null || user.spotifyRefreshToken == null) {
-      messageService.sendMessage(
-        channel,
-        "docJAM @$username You need to connect your Spotify account first. Use ;connect to get started.",
-      )
-      return
+    println("[COMMAND SERVICE] Extracted token part: $tokenPart")
+
+    // Split by semicolon to get individual key-value pairs
+    val pairs = tokenPart.split(";")
+
+    for (pair in pairs) {
+      // Split each pair by equals sign to get key and value
+      val keyValue = pair.trim().split("=", limit = 2)
+      if (keyValue.size == 2) {
+        val key = keyValue[0].trim()
+        val value = keyValue[1].trim()
+        if (key.isNotBlank() && value.isNotBlank()) {
+          result[key] = value
+        }
+      }
     }
 
-    val currentSong =
-      spotifyService.getCurrentlyPlayingSong(user.spotifyAccessToken!!, user.spotifyRefreshToken!!)
-
-    if (currentSong == null) {
-      messageService.sendMessage(
-        channel,
-        "docJAM @$username No song is currently playing on your Spotify account or there was an error getting the song information.",
-      )
-      return
-    }
-
-    // Check if we got an error response with a new token
-    if (currentSong.containsKey("error") && currentSong["error"] == "token_expired") {
-      // Update the user's access token
-      user.spotifyAccessToken = currentSong["new_token"]
-      userRepository.save(user)
-
-      // Try again with the new token
-      return addSpotifyCommand(username, channel)
-    }
-
-    // Search for the song on YouTube
-    val searchCommand = TwitchCommand("", listOf(currentSong["title"] ?: ""))
-    videoSearchService.searchVideo(searchCommand, channel, username)
+    println("[COMMAND SERVICE] Parsed token map: $result")
+    return result
   }
 
   /**
