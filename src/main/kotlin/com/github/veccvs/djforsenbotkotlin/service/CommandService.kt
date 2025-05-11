@@ -387,8 +387,9 @@ class CommandService(
   }
 
   /**
-   * Tracks the user's currently playing Spotify songs and adds them to the playlist if they've been
-   * playing for at least 2 minutes. Will track up to 5 songs.
+   * Tracks the user's currently playing Spotify songs. The first song is added immediately,
+   * while subsequent songs are added if they've been playing for at least 2 minutes.
+   * Will track up to 5 songs total.
    *
    * @param username The username of the user
    * @param channel The channel to send the message to
@@ -408,7 +409,7 @@ class CommandService(
 
     messageService.sendMessage(
       channel,
-      "docJAM @$username Now tracking your Spotify. Songs that play for at least 2 minutes will be added (up to 5 songs). Tracking will stop after 10 minutes if no new songs are detected.",
+      "docJAM @$username Now tracking your Spotify. Your first song will be added immediately, and subsequent songs that play for at least 2 minutes will be added (up to 5 songs total). Tracking will stop after 10 minutes if no new songs are detected.",
     )
 
     // Start tracking in a background thread
@@ -419,6 +420,7 @@ class CommandService(
           var lastSongTitle: String? = null
           var lastSongUrl: String? = null
           var songsAdded = 0
+          var isFirstSong = true // Flag to track if it's the first song
           var lastNewSongTime =
             System.currentTimeMillis() // Track when the last new song was detected
 
@@ -465,8 +467,12 @@ class CommandService(
                 lastSongUrl = currentUrl
                 lastNewSongTime = System.currentTimeMillis() // Update the last new song time
 
-                // Wait for 2 minutes
-                Thread.sleep(120000)
+                // Wait for 2 minutes for all songs except the first one
+                if (!isFirstSong) {
+                  Thread.sleep(120000)
+                } else {
+                  isFirstSong = false // Mark that we've processed the first song
+                }
 
                 // Check if the same song is still playing
                 val checkSong =
