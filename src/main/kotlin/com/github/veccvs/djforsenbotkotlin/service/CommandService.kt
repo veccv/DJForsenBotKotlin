@@ -117,7 +117,7 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;current"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current"
     val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
     when (twitchCommand?.command) {
       ";link",
@@ -167,7 +167,11 @@ class CommandService(
       }
 
       ";track" -> {
-        trackAndAddSpotifyCommand(username, channel)
+        if (twitchCommand.params.isNotEmpty() && twitchCommand.params[0] == "stop") {
+          stopTrackingCommand(username, channel)
+        } else {
+          trackAndAddSpotifyCommand(username, channel)
+        }
       }
 
       ";current" -> {
@@ -425,9 +429,19 @@ class CommandService(
       return
     }
 
-    // Set userNotified to true to prevent notification
+    // Check if the user is already tracking
+    if (user != null && user.isTracking) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You are already tracking your Spotify songs. Use ;track stop to stop tracking."
+      )
+      return
+    }
+
+    // Set userNotified to true to prevent notification and set isTracking to true
     if (user != null) {
       user.userNotified = true
+      user.isTracking = true
       userRepository.save(user)
     }
 
@@ -456,6 +470,13 @@ class CommandService(
             if (
               System.currentTimeMillis() - lastNewSongTime > 600000
             ) { // 10 minutes in milliseconds
+              // Update user to set isTracking to false
+              val updatedUser = userRepository.findByUsername(username)
+              if (updatedUser != null) {
+                updatedUser.isTracking = false
+                userRepository.save(updatedUser)
+              }
+
               messageService.sendMessage(
                 channel,
                 "docJAM @$username Stopped tracking after 10 minutes with no new songs. Added $songsAdded songs to the playlist.",
@@ -691,12 +712,27 @@ class CommandService(
             }
           }
 
+          // Update user to set isTracking to false
+          val updatedUser = userRepository.findByUsername(username)
+          if (updatedUser != null) {
+            updatedUser.isTracking = false
+            userRepository.save(updatedUser)
+          }
+
           messageService.sendMessage(
             channel,
             "docJAM @$username Finished tracking. Added $songsAdded songs to the playlist.",
           )
         } catch (e: Exception) {
           logger.error("[SPOTIFY TRACKER] Error tracking songs: ${e.message}", e)
+
+          // Update user to set isTracking to false
+          val updatedUser = userRepository.findByUsername(username)
+          if (updatedUser != null) {
+            updatedUser.isTracking = false
+            userRepository.save(updatedUser)
+          }
+
           messageService.sendMessage(
             channel,
             "docJAM @$username Error tracking your Spotify songs. Please try again.",
@@ -704,6 +740,53 @@ class CommandService(
         }
       }
       .start()
+  }
+
+  /**
+   * Stops tracking the user's Spotify songs. Checks if the user can stop tracking based on the
+   * 5-minute cooldown period to prevent abuse.
+   *
+   * @param username The username of the user
+   * @param channel The channel to send the message to
+   */
+  private fun stopTrackingCommand(username: String, channel: String) {
+    val user = userRepository.findByUsername(username)
+
+    if (user == null) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You need to connect your Spotify account first. Use ;connect to get started."
+      )
+      return
+    }
+
+    // Check if the user is actually tracking
+    if (!user.isTracking) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You are not currently tracking your Spotify songs."
+      )
+      return
+    }
+
+    // Check if the user can stop tracking (5-minute cooldown)
+    if (!timeRestrictionService.canUserStopTracking(username)) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username You can stop tracking every 5 minutes. Time to next stop: ${
+          timeRestrictionService.timeToNextTrackStop(username)
+        }"
+      )
+      return
+    }
+
+    // Stop tracking
+    timeRestrictionService.setLastTrackStop(username)
+
+    messageService.sendMessage(
+      channel,
+      "docJAM @$username Stopped tracking your Spotify songs."
+    )
   }
 
   /**
