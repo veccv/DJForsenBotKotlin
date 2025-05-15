@@ -211,4 +211,57 @@ class TimeRestrictionService(
       "${minutes}min ${seconds}sec"
     }
   }
+
+  /**
+   * Checks if a user can stop tracking
+   *
+   * @param username The username of the user
+   * @return True if the user can stop tracking, false otherwise
+   */
+  fun canUserStopTracking(username: String): Boolean {
+    return canPerformTimeRestrictedAction(
+      username,
+      { it.lastTrackStop },
+      5, // 5-minute cooldown for stopping tracking
+      TimeUnit.MINUTES,
+    )
+  }
+
+  /**
+   * Gets the time until a user can stop tracking
+   *
+   * @param username The username of the user
+   * @return The time until the user can stop tracking
+   */
+  fun timeToNextTrackStop(username: String): String {
+    val user = userRepository.findByUsername(username) ?: return "0"
+    return timeToNextAction(user.lastTrackStop, 5) // 5-minute cooldown
+  }
+
+  /**
+   * Updates the user's last track stop timestamp
+   *
+   * @param username The username of the user
+   */
+  fun setLastTrackStop(username: String) {
+    userRepository.save(
+      userRepository.findByUsername(username)?.apply {
+        lastTrackStop = LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault())
+        isTracking = false
+      } ?: User(username)
+    )
+  }
+
+  /**
+   * Sets the user's tracking status
+   *
+   * @param username The username of the user
+   * @param isTracking Whether the user is tracking or not
+   */
+  fun setTrackingStatus(username: String, isTracking: Boolean) {
+    userRepository.save(
+      userRepository.findByUsername(username)?.apply { this.isTracking = isTracking }
+        ?: User(username)
+    )
+  }
 }

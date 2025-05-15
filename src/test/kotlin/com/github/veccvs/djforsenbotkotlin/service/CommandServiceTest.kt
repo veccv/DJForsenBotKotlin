@@ -2,10 +2,8 @@ package com.github.veccvs.djforsenbotkotlin.service
 
 import com.github.veccvs.djforsenbotkotlin.component.TwitchConnector
 import com.github.veccvs.djforsenbotkotlin.config.UserConfig
-import com.github.veccvs.djforsenbotkotlin.model.Song
 import com.github.veccvs.djforsenbotkotlin.model.TwitchCommand
 import com.github.veccvs.djforsenbotkotlin.model.User
-import com.github.veccvs.djforsenbotkotlin.model.UserSong
 import com.github.veccvs.djforsenbotkotlin.repository.UserRepository
 import com.github.veccvs.djforsenbotkotlin.service.command.*
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -13,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentMatchers.any
-import org.mockito.ArgumentMatchers.anyString
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.*
@@ -46,6 +43,10 @@ class CommandServiceTest {
   @Mock private lateinit var spotifyService: SpotifyService
 
   @Mock private lateinit var twitchConnector: TwitchConnector
+
+  @Mock private lateinit var spotifyCommandService: SpotifyCommandService
+
+  @Mock private lateinit var playlistCommandService: PlaylistCommandService
 
   @InjectMocks private lateinit var commandService: CommandService
 
@@ -281,7 +282,7 @@ class CommandServiceTest {
     verify(messageService)
       .sendMessage(
         testChannel,
-        "docJAM @$testUsername Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;mysongs",
+        "docJAM @$testUsername Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current",
       )
   }
 
@@ -316,18 +317,13 @@ class CommandServiceTest {
     `when`(timeRestrictionService.canResponseToCommand(testUsername)).thenReturn(true)
     `when`(commandParserService.parseCommand(message))
       .thenReturn(TwitchCommand(";skip", emptyList()))
-    `when`(timeRestrictionService.canUserSkipVideo(testUsername)).thenReturn(true)
-    `when`(userConfig.skipValue).thenReturn("5")
-    `when`(skipCounterService.getSkipCounter()).thenReturn(2)
-    `when`(timeRestrictionService.timeToNextSkip(testUsername)).thenReturn("10 minutes")
 
     // When
     commandService.commandHandler(testUsername, message, testChannel)
 
     // Then
     verify(timeRestrictionService).setLastResponse(testUsername)
-    verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
+    verify(playlistCommandService).skipCommand(testUsername, testChannel)
   }
 
   @Test
@@ -341,31 +337,26 @@ class CommandServiceTest {
     `when`(timeRestrictionService.canResponseToCommand(testUsername)).thenReturn(true)
     `when`(commandParserService.parseCommand(message))
       .thenReturn(TwitchCommand(";skip", emptyList()))
-    `when`(timeRestrictionService.canUserSkipVideo(testUsername)).thenReturn(false)
-    `when`(userConfig.skipValue).thenReturn("5")
-    `when`(skipCounterService.getSkipCounter()).thenReturn(2)
-    `when`(timeRestrictionService.timeToNextSkip(testUsername)).thenReturn("10 minutes")
 
     // When
     commandService.commandHandler(testUsername, message, testChannel)
 
     // Then
     verify(timeRestrictionService).setLastResponse(testUsername)
-    verify(timeRestrictionService, never()).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, "10 minutes")
+    verify(playlistCommandService).skipCommand(testUsername, testChannel)
   }
 
   @Test
-  fun `test commandHandler with mysongs command`() {
+  fun `test commandHandler with when command`() {
     // Given
-    val message = ";mysongs"
+    val message = ";when"
     val user = User(testUsername)
 
-    `when`(commandParserService.detectCommand(message)).thenReturn(";mysongs")
+    `when`(commandParserService.detectCommand(message)).thenReturn(";when")
     `when`(userRepository.findByUsername(testUsername)).thenReturn(user)
     `when`(timeRestrictionService.canResponseToCommand(testUsername)).thenReturn(true)
     `when`(commandParserService.parseCommand(message))
-      .thenReturn(TwitchCommand(";mysongs", emptyList()))
+      .thenReturn(TwitchCommand(";when", emptyList()))
 
     // When
     commandService.commandHandler(testUsername, message, testChannel)
@@ -378,21 +369,21 @@ class CommandServiceTest {
   @Test
   fun `test commandHandler with remove command`() {
     // Given
-    val message = ";remove"
+    val message = ";undo"
     val user = User(testUsername)
 
-    `when`(commandParserService.detectCommand(message)).thenReturn(";remove")
+    `when`(commandParserService.detectCommand(message)).thenReturn(";undo")
     `when`(userRepository.findByUsername(testUsername)).thenReturn(user)
     `when`(timeRestrictionService.canResponseToCommand(testUsername)).thenReturn(true)
     `when`(commandParserService.parseCommand(message))
-      .thenReturn(TwitchCommand(";remove", emptyList()))
+      .thenReturn(TwitchCommand(";undo", emptyList()))
 
     // When
     commandService.commandHandler(testUsername, message, testChannel)
 
     // Then
     verify(timeRestrictionService).setLastResponse(testUsername)
-    verify(commandService).removeSongCommand(testUsername, testChannel)
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
@@ -422,174 +413,97 @@ class CommandServiceTest {
   @Test
   fun `test skipCommand when user can skip`() {
     // Given
-    `when`(timeRestrictionService.canUserSkipVideo(testUsername)).thenReturn(true)
-    `when`(userConfig.skipValue).thenReturn("5")
-    `when`(skipCounterService.getSkipCounter()).thenReturn(2)
-    `when`(timeRestrictionService.timeToNextSkip(testUsername)).thenReturn("10 minutes")
 
     // When
     commandService.skipCommand(testUsername, testChannel)
 
     // Then
-    verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
+    verify(playlistCommandService).skipCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test skipCommand when user cannot skip`() {
     // Given
-    `when`(timeRestrictionService.canUserSkipVideo(testUsername)).thenReturn(false)
-    `when`(userConfig.skipValue).thenReturn("5")
-    `when`(skipCounterService.getSkipCounter()).thenReturn(2)
-    `when`(timeRestrictionService.timeToNextSkip(testUsername)).thenReturn("10 minutes")
 
     // When
     commandService.skipCommand(testUsername, testChannel)
 
     // Then
-    verify(timeRestrictionService, never()).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, false, 5L, "10 minutes")
+    verify(playlistCommandService).skipCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test skipCommand with null skipValue`() {
     // Given
-    `when`(timeRestrictionService.canUserSkipVideo(testUsername)).thenReturn(true)
-    `when`(userConfig.skipValue).thenReturn(null)
-    `when`(skipCounterService.getSkipCounter()).thenReturn(2)
-    `when`(timeRestrictionService.timeToNextSkip(testUsername)).thenReturn("10 minutes")
 
     // When
     commandService.skipCommand(testUsername, testChannel)
 
     // Then
-    verify(timeRestrictionService).setLastSkip(testUsername)
-    verify(playlistService).handleSkipCommand(testUsername, testChannel, true, 5L, "10 minutes")
+    verify(playlistCommandService).skipCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test removeSongCommand when song can be removed`() {
     // Given
-    val song = mock(UserSong::class.java)
-    val songEntity = mock(Song::class.java)
-
-    `when`(timeRestrictionService.canUserRemoveVideo(testUsername)).thenReturn(true)
-    `when`(song.song).thenReturn(songEntity)
-    `when`(songEntity.link).thenReturn("https://youtu.be/testVideo")
-    `when`(song.title).thenReturn("Test Song Title")
-    `when`(userSongService.removeRecentUserSong(testUsername)).thenReturn(song)
-    `when`(playlistService.removeVideo("https://youtu.be/testVideo")).thenReturn(true)
 
     // When
     commandService.removeSongCommand(testUsername, testChannel)
 
     // Then
-    verify(userSongService).removeRecentUserSong(testUsername)
-    verify(playlistService).removeVideo("https://youtu.be/testVideo")
-    verify(timeRestrictionService).resetVideoCooldown(testUsername)
-    verify(timeRestrictionService).setLastRemoval(testUsername)
-    verify(messageService)
-      .sendMessage(
-        testChannel,
-        "docJAM @$testUsername Removed your song 'Test Song Title'. You can add another song now.",
-      )
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test removeSongCommand when no song is available to remove`() {
     // Given
-    `when`(timeRestrictionService.canUserRemoveVideo(testUsername)).thenReturn(true)
-    `when`(userSongService.removeRecentUserSong(testUsername)).thenReturn(null)
 
     // When
     commandService.removeSongCommand(testUsername, testChannel)
 
     // Then
-    verify(userSongService).removeRecentUserSong(testUsername)
-    verify(messageService)
-      .sendMessage(
-        testChannel,
-        "docJAM @$testUsername You don't have any recently added songs to remove (must be within 5 minutes of adding)",
-      )
-    verify(playlistService, never()).removeVideo(anyString())
-    verify(timeRestrictionService, never()).resetVideoCooldown(anyString())
-    verify(timeRestrictionService, never()).setLastRemoval(anyString())
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test removeSongCommand when song link is null`() {
     // Given
-    val song = mock(UserSong::class.java)
-
-    `when`(timeRestrictionService.canUserRemoveVideo(testUsername)).thenReturn(true)
-    `when`(song.song).thenReturn(null)
-    `when`(userSongService.removeRecentUserSong(testUsername)).thenReturn(song)
 
     // When
     commandService.removeSongCommand(testUsername, testChannel)
 
     // Then
-    verify(userSongService).removeRecentUserSong(testUsername)
-    verify(messageService)
-      .sendMessage(testChannel, "docJAM @$testUsername Error removing song. Please try again.")
-    verify(playlistService, never()).removeVideo(anyString())
-    verify(timeRestrictionService, never()).resetVideoCooldown(anyString())
-    verify(timeRestrictionService, never()).setLastRemoval(anyString())
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test removeSongCommand when playlist removal fails`() {
     // Given
-    val song = mock(UserSong::class.java)
-    val songEntity = mock(Song::class.java)
-
-    `when`(timeRestrictionService.canUserRemoveVideo(testUsername)).thenReturn(true)
-    `when`(song.song).thenReturn(songEntity)
-    `when`(songEntity.link).thenReturn("https://youtu.be/testVideo")
-    `when`(song.title).thenReturn("Test Song Title")
-    `when`(userSongService.removeRecentUserSong(testUsername)).thenReturn(song)
-    `when`(playlistService.removeVideo("https://youtu.be/testVideo")).thenReturn(false)
 
     // When
     commandService.removeSongCommand(testUsername, testChannel)
 
     // Then
-    verify(userSongService).removeRecentUserSong(testUsername)
-    verify(playlistService).removeVideo("https://youtu.be/testVideo")
-    verify(timeRestrictionService, never()).resetVideoCooldown(anyString())
-    verify(timeRestrictionService, never()).setLastRemoval(anyString())
-    verify(messageService)
-      .sendMessage(
-        testChannel,
-        "docJAM @$testUsername Error removing song from playlist. Please try again.",
-      )
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test removeSongCommand when user cannot remove video due to cooldown`() {
     // Given
-    `when`(timeRestrictionService.canUserRemoveVideo(testUsername)).thenReturn(false)
-    `when`(timeRestrictionService.timeToNextRemoval(testUsername)).thenReturn("2min 30sec")
 
     // When
     commandService.removeSongCommand(testUsername, testChannel)
 
     // Then
-    verify(messageService)
-      .sendMessage(
-        testChannel,
-        "docJAM @$testUsername You can remove a video every 5 minutes. Time to next removal: 2min 30sec",
-      )
-    verify(userSongService, never()).removeRecentUserSong(anyString())
-    verify(playlistService, never()).removeVideo(anyString())
-    verify(timeRestrictionService, never()).resetVideoCooldown(anyString())
-    verify(timeRestrictionService, never()).setLastRemoval(anyString())
+    verify(playlistCommandService).removeSongCommand(testUsername, testChannel)
   }
 
   @Test
   fun `test parseTokenResponse with standard token format`() {
     // Given
     val tokenResponse = "token=abc123;refreshToken=xyz789;"
+    val expectedResult = mapOf("token" to "abc123", "refreshToken" to "xyz789")
+    `when`(spotifyCommandService.parseTokenResponse(tokenResponse)).thenReturn(expectedResult)
 
     // When
     val result = commandService.parseTokenResponse(tokenResponse)
@@ -604,6 +518,17 @@ class CommandServiceTest {
     // Given
     val twitchWhisperMessage =
       "@badges=rplace-2023/1;color=#FF0000;display-name=veccvs;emotes=;message-id=40;thread-id=99548338_517979103;turbo=0;user-id=517979103;user-type= :veccvs!veccvs@veccvs.tmi.twitch.tv WHISPER djfors_ :token=BQBHqhOmbOxGkxA0gkuw7OOULtvUrb0bZxv7CeT2wMcBD278WyWs6qtFyOm8GvyYdXeUBWtD2lMWG__LUJUQ0js6uQ3AQrxZcODSgaFJo5CXoG6-V8BRaKKaonGZobTNwukfx5tBU5VK6trLBPJtz8q0pB_glM_0wNSnArkRjF9MHIWG9c06g1kBsUuKkUy91A14SEifG6gyHK6uHTTdTJo1iYN6mrI9ALnHxpIeI9UknrbqVKztlw;refreshToken=AQB3tGUbDkuXnKMg150cCRw_nZGUfNN19h-zPOxUO0e0Yo-2LbJr1VGGoOVAtYWY5zCfLGbmEObC6HMAAI9e1nDJXCikeNvcDU5kpc6vDuRHVgn7o3tBbvnmY0Ct1RmnQNg;"
+
+    val expectedResult =
+      mapOf(
+        "token" to
+          "BQBHqhOmbOxGkxA0gkuw7OOULtvUrb0bZxv7CeT2wMcBD278WyWs6qtFyOm8GvyYdXeUBWtD2lMWG__LUJUQ0js6uQ3AQrxZcODSgaFJo5CXoG6-V8BRaKKaonGZobTNwukfx5tBU5VK6trLBPJtz8q0pB_glM_0wNSnArkRjF9MHIWG9c06g1kBsUuKkUy91A14SEifG6gyHK6uHTTdTJo1iYN6mrI9ALnHxpIeI9UknrbqVKztlw",
+        "refreshToken" to
+          "AQB3tGUbDkuXnKMg150cCRw_nZGUfNN19h-zPOxUO0e0Yo-2LbJr1VGGoOVAtYWY5zCfLGbmEObC6HMAAI9e1nDJXCikeNvcDU5kpc6vDuRHVgn7o3tBbvnmY0Ct1RmnQNg",
+      )
+
+    `when`(spotifyCommandService.parseTokenResponse(twitchWhisperMessage))
+      .thenReturn(expectedResult)
 
     // When
     val result = commandService.parseTokenResponse(twitchWhisperMessage)

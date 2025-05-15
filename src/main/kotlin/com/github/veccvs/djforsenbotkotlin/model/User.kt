@@ -39,4 +39,12 @@ class User(@Column(name = "username", nullable = false) var username: String) {
   var spotifyRefreshToken: String? = null
   @Column(name = "spotify_token_expiration", nullable = true)
   var spotifyTokenExpiration: LocalDateTime? = null
+
+  // Track stop command tracking
+  @Column(name = "last_track_stop", nullable = false)
+  var lastTrackStop: LocalDateTime = LocalDateTime.now().minusDays(1)
+
+  // Flag to indicate if tracking is active
+  @Column(name = "is_tracking", nullable = false)
+  var isTracking: Boolean = false
 }
