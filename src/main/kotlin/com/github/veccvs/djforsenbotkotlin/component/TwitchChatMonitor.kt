@@ -46,18 +46,53 @@ class TwitchChatMonitor @Autowired constructor(private val userConfig: UserConfi
     logger.info("[CHAT MONITOR] Received message in $channel from $sender: $message")
     // Store the message with the current timestamp
     receivedMessagesTimestamps[message] = System.currentTimeMillis()
+
     // Check if this is the message we're waiting for
-    if (message == messageToVerify && sender == BOT_USERNAME) {
-      logger.info("[VERIFICATION SUCCESS] Bot message verified in chat: $message")
-      messageLatch?.countDown()
+    if (messageToVerify != null) {
+      val normalizedReceived = normalizeMessage(message)
+      val normalizedExpected = normalizeMessage(messageToVerify!!)
+
+      if (normalizedReceived == normalizedExpected && sender == BOT_USERNAME) {
+        logger.info("[VERIFICATION SUCCESS] Bot message verified in chat: $message")
+
+        // Log detailed comparison if the raw messages don't match but normalized versions do
+        if (message != messageToVerify) {
+          logger.info("[VERIFICATION DETAIL] Raw messages differ but normalized versions match:")
+          logger.info("[VERIFICATION DETAIL] Expected: '$messageToVerify'")
+          logger.info("[VERIFICATION DETAIL] Received: '$message'")
+          logger.info("[VERIFICATION DETAIL] Normalized expected: '$normalizedExpected'")
+          logger.info("[VERIFICATION DETAIL] Normalized received: '$normalizedReceived'")
+        }
+
+        messageLatch?.countDown()
+      }
     }
   }
 
   fun verifyMessageSent(message: String, timeoutSeconds: Int = 5): Boolean {
     clearStaleMessages()
-    val alreadySeen = receivedMessagesTimestamps.containsKey(message)
+
+    // Check if we've already seen this message, using normalized comparison
+    val normalizedMessage = normalizeMessage(message)
+
+    // Find the matching message if any
+    val matchingMessage =
+      receivedMessagesTimestamps.keys.find { normalizeMessage(it) == normalizedMessage }
+    val alreadySeen = matchingMessage != null
+
     if (alreadySeen) {
       logger.info("[VERIFICATION SUCCESS] Message was already seen in chat: $message")
+
+      // Log detailed comparison if the raw messages don't match but normalized versions do
+      if (matchingMessage != message) {
+        logger.info("[VERIFICATION DETAIL] Raw messages differ but normalized versions match:")
+        logger.info("[VERIFICATION DETAIL] Expected: '$message'")
+        logger.info("[VERIFICATION DETAIL] Matched with: '$matchingMessage'")
+        logger.info("[VERIFICATION DETAIL] Normalized expected: '$normalizedMessage'")
+        logger.info(
+          "[VERIFICATION DETAIL] Normalized matched: '${normalizeMessage(matchingMessage!!)}'"
+        )
+      }
     }
     return if (alreadySeen) {
       true
@@ -89,6 +124,27 @@ class TwitchChatMonitor @Autowired constructor(private val userConfig: UserConfi
   private fun clearStaleMessages() {
     val now = System.currentTimeMillis()
     receivedMessagesTimestamps.entries.removeIf { now - it.value > MESSAGE_STALE_THRESHOLD_MS }
+  }
+
+  /**
+   * Normalizes a message for comparison by handling special characters. This helps with
+   * verification when messages contain characters that might be encoded differently.
+   */
+  private fun normalizeMessage(message: String): String {
+    return message
+      .replace("'", "'") // Normalize apostrophes
+      .replace("'", "'") // Handle different apostrophe types
+      .replace("'", "'") // Handle more apostrophe variants
+      .replace(
+        """, "\"") // Normalize quotes
+      .replace(""",
+        "\"",
+      ) // Handle different quote types
+      .replace("–", "-") // Normalize en dash
+      .replace("—", "-") // Normalize em dash
+      .replace("\u00A0", " ") // Replace non-breaking space with regular space
+      .replace(Regex("\\s+"), " ") // Normalize multiple spaces to single space
+      .trim()
   }
 
   @PostConstruct

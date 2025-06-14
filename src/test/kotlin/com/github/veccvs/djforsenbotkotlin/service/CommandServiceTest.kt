@@ -48,6 +48,8 @@ class CommandServiceTest {
 
   @Mock private lateinit var playlistCommandService: PlaylistCommandService
 
+  @Mock private lateinit var gptService: GptService
+
   @InjectMocks private lateinit var commandService: CommandService
 
   private val testUsername = "testUser"
@@ -542,5 +544,39 @@ class CommandServiceTest {
       "AQB3tGUbDkuXnKMg150cCRw_nZGUfNN19h-zPOxUO0e0Yo-2LbJr1VGGoOVAtYWY5zCfLGbmEObC6HMAAI9e1nDJXCikeNvcDU5kpc6vDuRHVgn7o3tBbvnmY0Ct1RmnQNg",
       result["refreshToken"],
     )
+  }
+
+  @Test
+  fun `test commandHandler ignores messages from bot botr`() {
+    // Given
+    val botUsername = "botr"
+    val message = ";search test"
+
+    // When
+    commandService.commandHandler(botUsername, message, testChannel)
+
+    // Then
+    // Verify that no interactions occur with any services since the message should be ignored
+    verifyNoInteractions(commandParserService)
+    verifyNoInteractions(userRepository)
+    verifyNoInteractions(timeRestrictionService)
+    verifyNoInteractions(messageService)
+  }
+
+  @Test
+  fun `test commandHandler ignores messages from bot supibot`() {
+    // Given
+    val botUsername = "supibot"
+    val message = ";search test"
+
+    // When
+    commandService.commandHandler(botUsername, message, testChannel)
+
+    // Then
+    // Verify that no interactions occur with any services since the message should be ignored
+    verifyNoInteractions(commandParserService)
+    verifyNoInteractions(userRepository)
+    verifyNoInteractions(timeRestrictionService)
+    verifyNoInteractions(messageService)
   }
 }
