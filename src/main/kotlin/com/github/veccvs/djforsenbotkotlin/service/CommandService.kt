@@ -36,6 +36,7 @@ class CommandService(
   @Autowired private val spotifyService: SpotifyService,
   @Autowired private val spotifyCommandService: SpotifyCommandService,
   @Autowired private val playlistCommandService: PlaylistCommandService,
+  @Autowired private val gptService: GptService,
 ) {
   /**
    * Companion object for the CommandService class. Acts as a container for shared constants and
@@ -78,14 +79,31 @@ class CommandService(
    * @param channel The Twitch channel where the message was sent.
    */
   fun commandHandler(username: String, message: String, channel: String) {
-    // Only log messages that are bot commands
-    if (message.startsWith("!djfors_") || message.startsWith(";")) {
+    // Ignore messages from specific bots
+    if (username == "botr" || username == "supibot") {
+      logger.info("[COMMAND HANDLER] Ignoring message from bot: $username")
+      return
+    }
+
+    // Only log messages that are bot commands or mentions
+    if (
+      message.startsWith("!djfors_") ||
+        message.startsWith(";") ||
+        commandParserService.detectBotMention(message)
+    ) {
       println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
     }
 
     if (message.startsWith("!djfors_")) {
       logger.info("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
+      return
+    }
+
+    // Check if the bot is mentioned
+    if (commandParserService.detectBotMention(message)) {
+      logger.info("[COMMAND HANDLER] Detected bot mention from $username")
+      handleBotMention(username, message, channel)
       return
     }
 
@@ -272,5 +290,45 @@ class CommandService(
    */
   fun removeSongCommand(username: String, channel: String) {
     playlistCommandService.removeSongCommand(username, channel)
+  }
+
+  /**
+   * Handles when the bot is mentioned in a message. Extracts the message content after the mention
+   * and sends it to the GPT API.
+   *
+   * @param username The username of the user who mentioned the bot
+   * @param message The full message that contains the mention
+   * @param channel The channel where the message was sent
+   */
+  private fun handleBotMention(username: String, message: String, channel: String) {
+    // Check if user is on cooldown for commands
+    if (!timeRestrictionService.canResponseToCommand(username)) {
+      logger.info("[GPT] User $username is on cooldown, ignoring mention")
+      return
+    }
+
+    // Set last response time for the user
+    timeRestrictionService.setLastResponse(username)
+
+    if (message.isBlank()) {
+      messageService.sendMessage(channel, "docJAM @$username How can I help you?")
+      return
+    }
+
+    logger.info("[GPT] Processing mention from $username with content: $message")
+
+    // Call the GPT API to get a response
+    val gptResponse = gptService.getGptResponse(message, username)
+
+    if (gptResponse != null) {
+      // Send the response back to the channel
+      messageService.sendMessage(channel, gptResponse)
+    } else {
+      // Send an error message if the GPT API call failed
+      messageService.sendMessage(
+        channel,
+        "docJAM @$username Sorry, I couldn't process your request at this time.",
+      )
+    }
   }
 }
