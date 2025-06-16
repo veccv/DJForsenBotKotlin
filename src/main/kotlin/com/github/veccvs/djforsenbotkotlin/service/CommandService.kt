@@ -9,6 +9,9 @@ import com.github.veccvs.djforsenbotkotlin.service.command.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import java.time.Duration
+import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Service responsible for managing and executing commands in a Twitch chat context. It processes
@@ -59,6 +62,11 @@ class CommandService(
    * whispers. Acts as a utility to handle Twitch-specific actions required by CommandService.
    */
   private val twitchConnector = TwitchConnector()
+
+  private val failedResponseTimestamps: MutableMap<String, LocalDateTime> =
+    ConcurrentHashMap()
+
+  private val pendingUsers = ConcurrentHashMap.newKeySet<String>()
 
   /**
    * Sends a message to the specified channel.
@@ -301,13 +309,11 @@ class CommandService(
    * @param channel The channel where the message was sent
    */
   private fun handleBotMention(username: String, message: String, channel: String) {
-    // Check if user is on cooldown for commands
-    if (!timeRestrictionService.canResponseToCommand(username)) {
-      logger.info("[GPT] User $username is on cooldown, ignoring mention")
+    if (!pendingUsers.add(username)) {
+      logger.info("[GPT] User $username already has a pending GPT request – skipping")
       return
     }
 
-    // Set last response time for the user
     timeRestrictionService.setLastResponse(username)
 
     if (message.isBlank()) {
@@ -317,14 +323,30 @@ class CommandService(
 
     logger.info("[GPT] Processing mention from $username with content: $message")
 
-    // Call the GPT API to get a response
-    val gptResponse = gptService.getGptResponse(message, username)
+    val now = LocalDateTime.now()
+    failedResponseTimestamps[username]?.let { lastFail ->
+      val cooldownSeconds = userConfig.secondsToResponseToCommand?.toLong() ?: 6L
+      if (Duration.between(lastFail, now).seconds < cooldownSeconds) {
+        logger.info("[GPT] User $username still in failure cooldown, ignoring mention")
+        return
+      } else {
+        failedResponseTimestamps.remove(username)
+      }
+    }
+
+    val gptResponse: String?
+    try {
+      gptResponse = gptService.getGptResponse(message, username)
+    } finally {
+      pendingUsers.remove(username)
+    }
 
     if (gptResponse != null) {
       // Send the response back to the channel
       messageService.sendMessage(channel, gptResponse)
     } else {
       // Send an error message if the GPT API call failed
+      failedResponseTimestamps[username] = now
       messageService.sendMessage(
         channel,
         "docJAM @$username Sorry, I couldn't process your request at this time.",
