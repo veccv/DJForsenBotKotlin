@@ -63,8 +63,7 @@ class CommandService(
    */
   private val twitchConnector = TwitchConnector()
 
-  private val failedResponseTimestamps: MutableMap<String, LocalDateTime> =
-    ConcurrentHashMap()
+  private val failedResponseTimestamps: MutableMap<String, LocalDateTime> = ConcurrentHashMap()
 
   private val pendingUsers = ConcurrentHashMap.newKeySet<String>()
 
@@ -142,7 +141,7 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;m, ;match, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current"
     val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
     when (twitchCommand?.command) {
       ";link",
@@ -201,6 +200,11 @@ class CommandService(
 
       ";current" -> {
         spotifyCommandService.addCurrentSpotifyCommand(username, channel)
+      }
+
+      ";m",
+      ";match" -> {
+        handleMusicMatchCommand(twitchCommand, channel, username)
       }
 
       else -> {
@@ -351,6 +355,64 @@ class CommandService(
         channel,
         "docJAM @$username Sorry, I couldn't process your request at this time.",
       )
+    }
+  }
+
+  /**
+   * Handles the ";m" or ";match" command. Uses GPT music endpoint to transform the user query into
+   * a song search phrase and then delegates the search & add operation to [VideoSearchService].
+   *
+   * @param twitchCommand The parsed Twitch command containing the raw user query.
+   * @param channel The Twitch channel where the command was issued.
+   * @param username The username of the user who issued the command.
+   */
+  private fun handleMusicMatchCommand(
+    twitchCommand: TwitchCommand?,
+    channel: String,
+    username: String,
+  ) {
+    // Verify whether the user is allowed to add a new video
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+
+    val userQuery = twitchCommand?.params?.joinToString(" ") ?: ""
+
+    if (userQuery.isBlank()) {
+      messageService.sendMessage(
+        channel,
+        "@$username docJAM Please provide a search query, e.g. ;m never gonna give you up",
+      )
+      return
+    }
+
+    val gptResult = gptService.getMusicResponse(userQuery, username)
+
+    if (gptResult.isNullOrBlank()) {
+      messageService.sendMessage(
+        channel,
+        "@$username docJAM Sorry, I couldn't find a matching song right now.",
+      )
+      return
+    }
+
+    // GPT may already return a full YouTube URL. If so, try to add directly. Otherwise use it as
+    // search phrase.
+    val gptTrimmed = gptResult.trim()
+
+    val videoAdded =
+      if (gptTrimmed.startsWith("http")) {
+        // Wrap the URL in a TwitchCommand so existing logic can handle it uniformly
+        videoSearchService.searchVideo(
+          TwitchCommand("", listOf(gptTrimmed)),
+          channel,
+          username,
+          sendMessage = true,
+        )
+      } else {
+        videoSearchService.searchVideo(TwitchCommand("", listOf(gptTrimmed)), channel, username)
+      }
+
+    if (!videoAdded) {
+      messageService.sendMessage(channel, "@$username docJAM Sorry, couldn't add the song.")
     }
   }
 }
