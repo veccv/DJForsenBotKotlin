@@ -315,6 +315,7 @@ class CommandService(
   private fun handleBotMention(username: String, message: String, channel: String) {
     if (!pendingUsers.add(username)) {
       logger.info("[GPT] User $username already has a pending GPT request – skipping")
+      messageService.sendMessage(channel, "PauseMan ✋ wait please $username")
       return
     }
 
