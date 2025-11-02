@@ -1,4 +1,4 @@
-FROM openjdk:21-slim-bullseye AS builder
+FROM openjdk:21-slim AS builder
 WORKDIR /workspace/app
 COPY . .
 RUN ./gradlew build -x test
