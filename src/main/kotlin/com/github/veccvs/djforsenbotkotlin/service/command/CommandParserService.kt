@@ -41,12 +41,11 @@ class CommandParserService {
    * @return True if the bot is mentioned, false otherwise
    */
   fun detectBotMention(message: String): Boolean {
-    // Check for @botname or just botname at the beginning of the message
     val normalizedMessage = message.trim().lowercase()
     val mentionWithAt = "@$BOT_USERNAME".lowercase()
 
-    return normalizedMessage.contains(mentionWithAt) ||
-      normalizedMessage.contains(BOT_USERNAME.lowercase())
+    return normalizedMessage.startsWith(mentionWithAt) ||
+      normalizedMessage.startsWith(BOT_USERNAME.lowercase())
   }
 
   /**

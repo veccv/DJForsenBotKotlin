@@ -63,8 +63,7 @@ class CommandService(
    */
   private val twitchConnector = TwitchConnector()
 
-  private val failedResponseTimestamps: MutableMap<String, LocalDateTime> =
-    ConcurrentHashMap()
+  private val failedResponseTimestamps: MutableMap<String, LocalDateTime> = ConcurrentHashMap()
 
   private val pendingUsers = ConcurrentHashMap.newKeySet<String>()
 
@@ -142,8 +141,9 @@ class CommandService(
     channel: String,
   ) {
     val helpMessage =
-      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current"
-    val unknownCommandMessage = "docJAM @$username Unknown command, try ;link, ;search or ;help"
+      "docJAM @${username} Commands: ;link, ;where, ;search, ;s, ;find, ;f, ;help, ;playlist, ;skip, ;rg, ;when, ;undo, ;connect, ;track, ;track stop, ;current"
+    val unknownCommandMessage =
+      "docJAM @$username Unknown command, try ;link, ;search, ;find or ;help"
     when (twitchCommand?.command) {
       ";link",
       ";where" -> {
@@ -157,6 +157,11 @@ class CommandService(
       ";search",
       ";s" -> {
         handleSearchCommand(twitchCommand, channel, username)
+      }
+
+      ";find",
+      ";f" -> {
+        handleFindCommand(twitchCommand, channel, username)
       }
 
       ";rg" -> {
@@ -221,6 +226,44 @@ class CommandService(
   private fun handleSearchCommand(twitchCommand: TwitchCommand, channel: String, username: String) {
     if (checkAndNotifyUserCanAddVideo(username, channel)) return
     videoSearchService.searchVideo(twitchCommand, channel, username)
+  }
+
+  /**
+   * Handles the ";find" or ";f" command by using AI endpoint to find a song, then performing a
+   * video search. Verifies if the user can add a video within the channel before initiating the
+   * search.
+   *
+   * @param twitchCommand The parsed Twitch command containing the search query and parameters.
+   * @param channel The Twitch channel where the command was issued.
+   * @param username The username of the user who issued the command.
+   */
+  private fun handleFindCommand(twitchCommand: TwitchCommand, channel: String, username: String) {
+    if (checkAndNotifyUserCanAddVideo(username, channel)) return
+
+    val searchQuery = twitchCommand.params.joinToString(" ")
+    if (searchQuery.isBlank()) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @${username} Please provide a search query for ;find",
+      )
+      return
+    }
+
+    logger.info("[FIND] Processing AI find request from $username with query: $searchQuery")
+
+    val aiResponse = gptService.getMusicResponse(searchQuery, username)
+    if (aiResponse == null || aiResponse.isBlank()) {
+      messageService.sendMessage(
+        channel,
+        "docJAM @${username} Sorry, I couldn't process your find request at this time.",
+      )
+      return
+    }
+
+    logger.info("[FIND] AI response received: $aiResponse")
+
+    val aiSearchCommand = TwitchCommand(";search", listOf(aiResponse.trim()))
+    videoSearchService.searchVideo(aiSearchCommand, channel, username)
   }
 
   /**
