@@ -3,7 +3,7 @@ WORKDIR /workspace/app
 COPY . .
 RUN ./gradlew build -x test
 
-FROM openjdk:21-slim-bullseye AS runner
+FROM openjdk:21-slim AS runner
 WORKDIR /app
 COPY --from=builder /workspace/app/build/libs/*.jar app.jar
 ENTRYPOINT ["java","-jar","/app/app.jar"]
