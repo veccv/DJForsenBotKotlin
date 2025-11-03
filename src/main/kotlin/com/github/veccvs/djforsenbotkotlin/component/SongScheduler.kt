@@ -46,23 +46,23 @@ class SongScheduler(
         if (cytubeDao.getPlaylist()!!.queue[0].title.length < 50) {
           commandService.sendMessage(
             userConfig.channelName!!,
-            "now ᴘʟᴀʏɪɴɢ: ${
+            "docJAM now playing: ${
                   cytubeDao.getPlaylist()!!.queue[0].title.substring(
                       0,
                             cytubeDao.getPlaylist()!!.queue[0].title.length,
                   )
-              } ────⚪────── ◄◄⠀▐▐⠀►► \uD835\uDFF8:\uD835\uDFF7\uD835\uDFFE / \uD835\uDFF9:\uD835\uDFFB\uD835\uDFFC⠀───○ \uD83D\uDD0A",
+              }",
           )
           skipCounterService.resetSkipCounter()
         } else {
           commandService.sendMessage(
             userConfig.channelName!!,
-            "now ᴘʟᴀʏɪɴɢ: ${
+            "docJAM now playing: ${
                   cytubeDao.getPlaylist()!!.queue[0].title.substring(
                       0,
                       50,
                   )
-              }[...]  ────⚪────── ◄◄⠀▐▐⠀►► \uD835\uDFF8:\uD835\uDFF7\uD835\uDFFE / \uD835\uDFF9:\uD835\uDFFB\uD835\uDFFC⠀───○ \uD83D\uDD0A",
+              }[...]",
           )
           skipCounterService.resetSkipCounter()
         }
