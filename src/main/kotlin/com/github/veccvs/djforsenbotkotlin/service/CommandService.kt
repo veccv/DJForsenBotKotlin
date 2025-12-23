@@ -9,7 +9,6 @@ import com.github.veccvs.djforsenbotkotlin.service.command.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import java.time.Duration
 import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentHashMap
 
@@ -93,24 +92,13 @@ class CommandService(
     }
 
     // Only log messages that are bot commands or mentions
-    if (
-      message.startsWith("!djfors_") ||
-        message.startsWith(";") ||
-        commandParserService.detectBotMention(message)
-    ) {
+    if (message.startsWith("!djfors_") || message.startsWith(";")) {
       println("[COMMAND HANDLER] Processing message from $username in $channel: $message")
     }
 
     if (message.startsWith("!djfors_")) {
       logger.info("[COMMAND HANDLER] Detected !djfors_ command")
       messageService.sendMessage(channel, "docJAM @${username} bot made by veccvs")
-      return
-    }
-
-    // Check if the bot is mentioned
-    if (commandParserService.detectBotMention(message)) {
-      logger.info("[COMMAND HANDLER] Detected bot mention from $username")
-      handleBotMention(username, message, channel)
       return
     }
 
@@ -341,59 +329,5 @@ class CommandService(
    */
   fun removeSongCommand(username: String, channel: String) {
     playlistCommandService.removeSongCommand(username, channel)
-  }
-
-  /**
-   * Handles when the bot is mentioned in a message. Extracts the message content after the mention
-   * and sends it to the GPT API.
-   *
-   * @param username The username of the user who mentioned the bot
-   * @param message The full message that contains the mention
-   * @param channel The channel where the message was sent
-   */
-  private fun handleBotMention(username: String, message: String, channel: String) {
-    if (!pendingUsers.add(username)) {
-      logger.info("[GPT] User $username already has a pending GPT request – skipping")
-      return
-    }
-
-    timeRestrictionService.setLastResponse(username)
-
-    if (message.isBlank()) {
-      messageService.sendMessage(channel, "docJAM @$username How can I help you?")
-      return
-    }
-
-    logger.info("[GPT] Processing mention from $username with content: $message")
-
-    val now = LocalDateTime.now()
-    failedResponseTimestamps[username]?.let { lastFail ->
-      val cooldownSeconds = userConfig.secondsToResponseToCommand?.toLong() ?: 6L
-      if (Duration.between(lastFail, now).seconds < cooldownSeconds) {
-        logger.info("[GPT] User $username still in failure cooldown, ignoring mention")
-        return
-      } else {
-        failedResponseTimestamps.remove(username)
-      }
-    }
-
-    val gptResponse: String?
-    try {
-      gptResponse = gptService.getGptResponse(message, username)
-    } finally {
-      pendingUsers.remove(username)
-    }
-
-    if (gptResponse != null) {
-      // Send the response back to the channel
-      messageService.sendMessage(channel, gptResponse)
-    } else {
-      // Send an error message if the GPT API call failed
-      failedResponseTimestamps[username] = now
-      messageService.sendMessage(
-        channel,
-        "docJAM @$username Sorry, I couldn't process your request at this time.",
-      )
-    }
   }
 }

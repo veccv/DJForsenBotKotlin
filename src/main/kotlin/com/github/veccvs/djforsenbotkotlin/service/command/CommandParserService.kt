@@ -6,10 +6,6 @@ import org.springframework.stereotype.Service
 /** Service for parsing Twitch chat commands */
 @Service
 class CommandParserService {
-  companion object {
-    // Bot username for mention detection
-    private const val BOT_USERNAME = "djfors_"
-  }
 
   /**
    * Detects if a message contains a command
@@ -32,42 +28,6 @@ class CommandParserService {
     }
 
     return result
-  }
-
-  /**
-   * Detects if a message mentions the bot
-   *
-   * @param message The message to check
-   * @return True if the bot is mentioned, false otherwise
-   */
-  fun detectBotMention(message: String): Boolean {
-    val normalizedMessage = message.trim().lowercase()
-    val mentionWithAt = "@$BOT_USERNAME".lowercase()
-
-    return normalizedMessage.startsWith(mentionWithAt) ||
-      normalizedMessage.startsWith(BOT_USERNAME.lowercase())
-  }
-
-  /**
-   * Extracts the actual message content after the bot mention
-   *
-   * @param message The full message that mentions the bot
-   * @return The message content after the bot mention, or the original message if no mention is
-   *   found
-   */
-  fun extractMessageAfterMention(message: String): String {
-    val normalizedMessage = message.trim()
-    val mentionWithAt = "@$BOT_USERNAME"
-
-    return when {
-      normalizedMessage.contains(mentionWithAt, ignoreCase = true) ->
-        normalizedMessage.substring(mentionWithAt.length).trim()
-
-      normalizedMessage.contains(BOT_USERNAME, ignoreCase = true) ->
-        normalizedMessage.substring(BOT_USERNAME.length).trim()
-
-      else -> normalizedMessage
-    }
   }
 
   /**
